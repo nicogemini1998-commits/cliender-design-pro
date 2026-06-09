@@ -27,7 +27,7 @@ from app.core.config import get_settings
 from app.schemas.moodboard import Moodboard, MoodboardImage, StyleManifest
 
 
-_VISION_AUDITOR_SYSTEM = """Eres el Vision_Auditor del creative swarm of the studio.
+_VISION_AUDITOR_SYSTEM = """Eres el Vision_Auditor del enjambre creativo de Cliender.
 
 === IDIOMA DE RESPUESTA (REGLA ABSOLUTA) ===
 TODOS los campos del JSON deben estar EN CASTELLANO, EXCEPTO:

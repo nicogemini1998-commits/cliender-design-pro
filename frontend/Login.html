@@ -336,7 +336,7 @@
         <div class="brand-lockup rise d1">
           <div class="logo-frame">
             <span class="logo-ring"></span>
-            <img class="logo-img" src="assets/logos/Logo1Purple.svg" alt="Design Pro"/>
+            <img class="logo-img" src="https://opjwsdaphsulnpuvpout.supabase.co/storage/v1/object/public/brand-assets/cliender/logo-isotipo-violet.png" alt="Cliender"/>
           </div>
           <div class="wordmark">CLIENDER</div>
           <div class="eyebrow">Design&nbsp;Pro</div>
@@ -382,13 +382,11 @@
   </div>
 
   <script>
-    /* Supabase Auth via REST — no external SDK, zero external dependencies.
-       Configure via window.__CDPRO_SUPABASE_URL / window.__CDPRO_SUPABASE_ANON_KEY
-       (e.g. injected by your build/deploy step) before this script runs. */
+    /* Supabase Auth via REST — sin SDK externo, cero dependencias externas */
     window._SB = (function() {
-      var URL  = window.__CDPRO_SUPABASE_URL || 'YOUR_SUPABASE_URL';
-      var ANON = window.__CDPRO_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
-      var LS_KEY = 'sb-cdpro-auth-token';
+      var URL  = 'https://opjwsdaphsulnpuvpout.supabase.co';
+      var ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wandzZGFwaHN1bG5wdXZwb3V0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4ODM4NTgsImV4cCI6MjA5NTQ1OTg1OH0.hnbr1kRUizsa6-9CwPjSXWX1aqKFDjDcgKpLFhHewHg';
+      var LS_KEY = 'sb-opjwsdaphsulnpuvpout-auth-token';
       function headers(extra) { return Object.assign({'apikey':ANON,'Content-Type':'application/json'}, extra||{}); }
       return {
         getSession: async function() {
@@ -445,11 +443,13 @@
       var magnet = document.getElementById('bg-magnet');
       if (!ring || prefersReduced || typeof gsap === 'undefined') return;  // sin gsap → solo el login (anti-trap)
 
-      // Demo carousel artwork. Swap these for your own generated images.
-      // Using free placeholder images so the demo renders out of the box.
       var IMGS = [
-        1011, 1015, 1016, 1018, 1020, 1024, 1025, 1027, 1035, 1038
-      ].map(function(id){ return "https://picsum.photos/id/" + id + "/600/800"; });
+        "c84f6a5eee4f4c9ebd799f1df673b244","362ac29b94b24e3b8810c9e6f496324a",
+        "6915f8f832424bbcaea9ff833784b5e4","9226871f0e8f49ddb6bac868b4b66409",
+        "5cc12801a541425e8001b54f5ae417cd","20270672cbbd4be78d637299bfe8af97",
+        "8b9dd42bd927494fa93e1befc0b66798","eeccf43b2b704439ad5503e4c504ffe7",
+        "fc7240517d5c4780aef229133683d7ad","a5ec818c9e4e41bc844f4f85aca8998e"
+      ].map(function(id){ return "https://opjwsdaphsulnpuvpout.supabase.co/storage/v1/object/public/brand-assets/generations/"+id+".png"; });
 
       var N = 16;  // 16 tarjetas: misma riqueza visual, menos tweens simultáneos → más fluido.
       // Radio amplio para rodear el login sin taparlo. La "zona prohibida" del login no se invade.

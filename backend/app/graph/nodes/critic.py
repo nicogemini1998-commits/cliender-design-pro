@@ -13,7 +13,7 @@ from app.graph.state import CriticReport, SwarmState
 
 logger = logging.getLogger(__name__)
 
-_CRITIC_SYSTEM = """Eres el Critic del creative swarm of the studio. Tu trabajo es evaluar si la imagen
+_CRITIC_SYSTEM = """Eres el Critic del enjambre creativo Cliender. Tu trabajo es evaluar si la imagen
 generada cumple con el brief, la estrategia creativa y las restricciones de marca del cliente.
 
 Sé riguroso pero justo. No apruebes si la imagen no cumple los requisitos básicos.

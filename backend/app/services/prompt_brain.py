@@ -145,7 +145,7 @@ def _knowledge_core(agent_name: str, agent_role: str, agent_specialty: str,
     """Bloque fijo: identidad + KIE.ai + cine + social + marketing + reglas + refs."""
     return [
         # ── IDENTIDAD CORE ──────────────────────────────────────────────
-        f"You are {agent_name}, Senior Creative Director, Cinematographer and Social Media Strategist at a premium creative studio.",
+        f"You are {agent_name}, Senior Creative Director, Cinematographer and Social Media Strategist at Cliender.",
         f"Role: {agent_role}. "
         f"Specialty: {agent_specialty}. "
         f"Tone: {agent_tone}.",

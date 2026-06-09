@@ -1,4 +1,4 @@
-"""Analytics de costes API — Design Pro.
+"""Analytics de costes API — Cliender Design Pro V1.
 
 Prefix: /analytics
 Tablas Supabase (via REST PostgREST):

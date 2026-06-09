@@ -32,7 +32,7 @@ from app.services.claude_client import get_claude
 # 1. LECTURA DEL STORYBOARD (Claude Vision)
 # ---------------------------------------------------------------------------
 
-_DIRECTOR_SYSTEM = """Eres el Storyboard Director del creative SuperComputer of the studio.
+_DIRECTOR_SYSTEM = """Eres el Storyboard Director del SuperComputer creativo de Cliender.
 Tu trabajo: leer una imagen de referencia que describe una secuencia de vídeo
 ESCENA POR ESCENA (un storyboard, viñetas, o una explicación visual del flujo) y
 fusionarla con el brief del usuario para producir un PLAN DE VÍDEO ejecutable.

@@ -1,9 +1,9 @@
 /* ════════════════════════════════════════════════════════════════════════
-   Brand tokens — example violet palette.
+   Cliender Brand Tokens — Paleta Oficial 2023 (Teresa Redón Studio)
    ----------------------------------------------------------------------
-   Loaded LAST: its variables override the base prototype tokens without
-   touching the rest of the CSS. Reversible instantly by removing this
-   <link> tag. Swap these values for your own brand palette.
+   Hoja que se CARGA AL FINAL: sus variables sobreescriben las del
+   prototipo original sin tocar el resto del CSS. Reversible al instante
+   eliminando esta etiqueta <link>.
    ════════════════════════════════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Inconsolata:wght@400;500;600;700&display=swap');
