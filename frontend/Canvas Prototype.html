@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cliender Desing Pro V1 — Canvas + Supercomputer</title>
+  <!-- AUTH GUARD — fetch nativo, sin SDK externo (sin dependencia de CDN) -->
+  <script>
+    (function() {
+      var LS_KEY = 'sb-cdpro-auth-token';
+      var SB_URL = window.__CDPRO_SUPABASE_URL || 'YOUR_SUPABASE_URL';
+      var ANON   = window.__CDPRO_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
+
+      function getSession() {
+        try {
+          var raw = localStorage.getItem(LS_KEY);
+          if (!raw) return null;
+          var tok = JSON.parse(raw);
+          if (!tok || !tok.access_token) return null;
+          if (tok.expires_at && Date.now()/1000 > tok.expires_at - 30) return null;
+          return tok;
+        } catch(e) { return null; }
+      }
+
+      window.__cdproSignOut = function() {
+        try {
+          var tok = getSession();
+          if (tok) { fetch(SB_URL+'/auth/v1/logout', { method:'POST', headers:{'apikey':ANON,'Authorization':'Bearer '+tok.access_token} }); }
+        } catch(e) {}
+        localStorage.removeItem(LS_KEY);
+        localStorage.removeItem('cdpro-user-email');
+        localStorage.removeItem('cdpro-user-id');
+        window.location.replace('Login.html');
+      };
+
+      // Verificar sesión — ocultar app hasta confirmar
+      document.documentElement.style.visibility = 'hidden';
+      var session = getSession();
+      if (!session) {
+        window.location.replace('Login.html');
+      } else {
+        localStorage.setItem('cdpro-user-email', session.user?.email || localStorage.getItem('cdpro-user-email') || '');
+        document.documentElement.style.visibility = '';
+      }
+    })();
+  </script>
+
+  <!-- Fuentes -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" />
+
+  <link rel="stylesheet" href="prototype/styles.css" />
+  <link rel="stylesheet" href="prototype/vault.css" />
+  <link rel="stylesheet" href="prototype/nodes-v2.css" />
+  <link rel="stylesheet" href="prototype/ui.css" />
+  <link rel="stylesheet" href="prototype/leftmenu.css" />
+  <link rel="stylesheet" href="prototype/liquid.css" />
+  <link rel="stylesheet" href="prototype/motion.css" />
+  <link rel="stylesheet" href="prototype/analytics.css" />
+
+  <!-- Cliender brand tokens (paleta oficial + Manrope/Inconsolata) — SIEMPRE ÚLTIMO para sobreescribir tokens -->
+  <link rel="stylesheet" href="prototype/astronaut.css" />
+  <link rel="stylesheet" href="prototype/cliender-brand.css" />
+
+  <!-- SuperComputer rediseño "lujo silencioso" — DESPUÉS de liquid.css + brand para ganar cascada -->
+  <link rel="stylesheet" href="prototype/supercomputer.css" />
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Veil de ENTRADA: empalma con el portal del login (mismo fondo) y oculta el arranque/transpilacion.
+       Se desvanece cuando React monta (#root con hijos) o a los 6s (failsafe). Continuidad sin flash. -->
+  <div id="enter-veil"></div>
+  <style>
+    #enter-veil { position: fixed; inset: 0; z-index: 99999; pointer-events: none;
+      background: radial-gradient(70vmax 60vmax at 50% 45%, #15131c 0%, #0a0a0f 55%, #060608 100%);
+      opacity: 1; transition: opacity .75s cubic-bezier(0.22,1,0.36,1); }
+    #enter-veil.gone { opacity: 0; }
+  </style>
+  <script>
+    (function(){
+      var veil = document.getElementById('enter-veil');
+      var root = document.getElementById('root');
+      var t0 = Date.now();
+      function mounted(){ return root && root.children && root.children.length > 0; }
+      function hide(){ if(!veil) return; veil.classList.add('gone'); setTimeout(function(){ if(veil.parentNode) veil.parentNode.removeChild(veil); }, 850); }
+      var iv = setInterval(function(){
+        if (mounted() || Date.now() - t0 > 6000) { clearInterval(iv); setTimeout(hide, 150); }
+      }, 90);
+    })();
+  </script>
+
+  <!-- Silencia advertencias de React dev-mode (PropTypes, StrictMode) que no son errores funcionales -->
+  <script>
+    (function() {
+      var _ce = console.error.bind(console);
+      console.error = function() {
+        var msg = arguments[0] || '';
+        if (typeof msg === 'string' && (
+          msg.includes('Warning:') || msg.includes('Each child') ||
+          msg.includes('validateDOMNesting') || msg.includes('findDOMNode') ||
+          msg.includes('ReactDOM.render') || msg.includes('act(')
+        )) return;
+        _ce.apply(console, arguments);
+      };
+    })();
+  </script>
+
+  <!-- React + Babel (pinned) -->
+  <!-- Runtime config (plain JS, must load before any jsx) -->
+  <script src="prototype/config.js"></script>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <!-- Three.js para astronauta 3D -->
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="prototype/nodes.jsx"></script>
+  <script type="text/babel" src="prototype/vault.jsx"></script>
+  <script type="text/babel" src="prototype/ui.jsx"></script>
+  <script type="text/babel" src="prototype/leftmenu.jsx"></script>
+  <script type="text/babel" src="prototype/analytics.jsx"></script>
+  <script type="text/babel" src="prototype/astronaut.jsx"></script>
+  <script type="text/babel" src="prototype/app.jsx"></script>
+</body>
+</html>

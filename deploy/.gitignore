@@ -1,0 +1,10 @@
+# Secrets — never commit real values
+.env
+.env.local
+.env.*.local
+
+# Allow the public template
+!.env.example
+
+# Logs
+*.log
