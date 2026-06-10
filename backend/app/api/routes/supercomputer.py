@@ -250,6 +250,8 @@ class RenderScene(BaseModel):
     duration_s: float | None = None      # duración en segundos (default 5s)
     caption: str | None = None           # subtítulo opcional sobre la escena
     muted: bool = True                    # silenciar audio de la escena
+    transition: str | None = None         # transición de ENTRADA: dissolve|fade|slide|slideup|zoom|whip|wipe|glitch|cut
+    transition_duration_s: float | None = None  # duración del solape de la transición (override opcional)
 
 
 class RenderBrand(BaseModel):
@@ -289,6 +291,12 @@ async def render_video(req: RenderRequest) -> RenderResponse:
             "durationInFrames": max(1, int(round((s.duration_s or 5.0) * fps))),
             "caption": s.caption or "",
             "muted": bool(s.muted),
+            "transition": (s.transition or None),
+            "transitionDurationInFrames": (
+                max(1, int(round(s.transition_duration_s * fps)))
+                if s.transition_duration_s and s.transition_duration_s > 0
+                else None
+            ),
         }
         for s in req.scenes
         if s.url and isinstance(s.url, str)

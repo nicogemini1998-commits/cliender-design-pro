@@ -397,6 +397,21 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
   const [confirmDelId, setConfirmDelId] = React.useState(null);
 
   const [editingItems, setEditingItems] = React.useState([]);
+  // Transición entre escenas para el ensamblaje de vídeo (Remotion Stitch).
+  // Catálogo espejo de 06. REMOTION RENDER/src/Stitch.jsx — label + descripción
+  // para que el usuario sepa exactamente qué hace cada transición.
+  const VIDEO_TRANSITIONS = {
+    dissolve: { label: "Disolvencia", description: "Crossfade suave: el clip nuevo se funde sobre el anterior. Elegante y fluido — el estándar profesional." },
+    fade:     { label: "Fundido a negro", description: "El clip se oscurece a negro y el siguiente emerge desde negro. Marca un cambio de bloque o de tiempo." },
+    slide:    { label: "Deslizamiento", description: "El clip nuevo entra empujando desde la derecha. Dinámico y direccional, ideal para ritmo ágil." },
+    slideup:  { label: "Deslizamiento vertical", description: "El clip nuevo sube desde abajo cubriendo al anterior. Moderno, tipo feed/stories." },
+    zoom:     { label: "Zoom punch", description: "El clip entra con un golpe de zoom y desenfoque que se resuelve. Energético y viral." },
+    whip:     { label: "Whip pan", description: "Barrido rápido con desenfoque de movimiento, como un latigazo de cámara. Estilo vlog/reel." },
+    wipe:     { label: "Barrido (wipe)", description: "Una cortina revela el clip nuevo de izquierda a derecha. Editorial y limpio." },
+    glitch:   { label: "Glitch digital", description: "Corte con distorsión RGB y parpadeo breve. Tech, urbano y moderno." },
+    cut:      { label: "Corte seco", description: "Cambio instantáneo sin transición. Directo y rítmico, como el montaje clásico." },
+  };
+  const [transition, setTransition] = React.useState("dissolve");
   const _delTimer = React.useRef(null);
 
   const askDelete = (e, id) => {
@@ -446,6 +461,7 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
         kind: it.kind === "video" ? "video" : "image",
         duration_s: parseFloat(String(it.duration || "")) || 5,
         caption: (it.prompt || "").slice(0, 90),
+        transition,
       }));
     if (scenes.length === 0) return;
     setRendering(true); setResult(null);
@@ -560,6 +576,20 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
             <span className="mono">
               {selected.length} escena{selected.length === 1 ? "" : "s"} · toca para ordenar
             </span>
+            {selected.length >= 2 && (
+              <div className="vedit-transition-picker" style={{ display: "flex", flexDirection: "column", gap: 4, marginRight: "auto", maxWidth: 380 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span className="mono" style={{ fontSize: 10, opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.1em" }}>Transición</span>
+                  <select className="vedit-select" style={{ height: 28, fontSize: 12, padding: "2px 8px" }}
+                    value={transition} onChange={(e) => setTransition(e.target.value)}>
+                    {Object.entries(VIDEO_TRANSITIONS).map(([id, t]) => (
+                      <option key={id} value={id}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <span style={{ fontSize: 11, opacity: 0.65, lineHeight: 1.35 }}>{VIDEO_TRANSITIONS[transition] && VIDEO_TRANSITIONS[transition].description}</span>
+              </div>
+            )}
             <div style={{ display: "flex", gap: 6 }}>
               {selectedVideos.length > 0 && (
                 <button className="gallery-assemble-go vedit-batch-trigger"
