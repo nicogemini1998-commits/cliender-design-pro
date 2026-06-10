@@ -23,6 +23,7 @@ function getBundle() {
   if (!_bundlePromise) {
     _bundlePromise = bundle({
       entryPoint: path.join(__dirname, "src", "index.jsx"),
+      publicDir: path.join(__dirname, "public"), // sfx/*.wav vía staticFile()
       // webpackOverride: (c) => c,
     }).catch((e) => { _bundlePromise = null; throw e; });
   }

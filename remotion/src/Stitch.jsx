@@ -7,6 +7,8 @@ import {
   interpolate,
   useCurrentFrame,
   useVideoConfig,
+  Audio,
+  staticFile,
 } from "remotion";
 
 export const INTRO_FRAMES = 50;
@@ -175,32 +177,39 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
 // ──────────────────────────────────────────────────────────────────────────
 // Timeline con solapes — fuente única para metadata y composición.
 // ──────────────────────────────────────────────────────────────────────────
-function computeTimeline(scenes, fps) {
+// `branding=false` (default): el montaje contiene SOLO el contenido del usuario
+// — sin intro/outro de marca. La primera escena arranca en el frame 0.
+function computeTimeline(scenes, fps, branding) {
   const items = [];
   let prevStart = 0;
-  let prevDur = INTRO_FRAMES;
-  items.push({ type: "intro", from: 0, dur: INTRO_FRAMES, td: 0 });
+  let prevDur = branding ? INTRO_FRAMES : 0;
+  if (branding) items.push({ type: "intro", from: 0, dur: INTRO_FRAMES, td: 0 });
 
   scenes.forEach((scene, i) => {
     const dur = Number(scene.durationInFrames) || fps * 5;
-    const td = Math.min(transitionFrames(scene, fps), Math.floor(prevDur * 0.9));
+    const noPrev = i === 0 && !branding;
+    const td = noPrev ? 0 : Math.min(transitionFrames(scene, fps), Math.floor(prevDur * 0.9));
     const start = Math.max(0, prevStart + prevDur - td);
     items.push({ type: "scene", scene, index: i, from: start, dur, td });
     prevStart = start;
     prevDur = dur;
   });
 
-  const outroTd = Math.min(TRANSITIONS.dissolve.frames(fps), Math.floor(prevDur * 0.9));
-  const outroStart = Math.max(0, prevStart + prevDur - outroTd);
-  items.push({ type: "outro", from: outroStart, dur: OUTRO_FRAMES, td: outroTd });
-
-  return { items, total: outroStart + OUTRO_FRAMES };
+  let total = prevStart + prevDur;
+  if (branding) {
+    const outroTd = Math.min(TRANSITIONS.dissolve.frames(fps), Math.floor(prevDur * 0.9));
+    const outroStart = Math.max(0, prevStart + prevDur - outroTd);
+    items.push({ type: "outro", from: outroStart, dur: OUTRO_FRAMES, td: outroTd });
+    total = outroStart + OUTRO_FRAMES;
+  }
+  return { items, total };
 }
 
 export function calcStitchMetadata({ props }) {
   const fps = props.fps || 30;
   const scenes = Array.isArray(props.scenes) ? props.scenes : [];
-  const { total } = computeTimeline(scenes, fps);
+  const branding = !!(props.style && props.style.branding === true);
+  const { total } = computeTimeline(scenes, fps, branding);
   return {
     durationInFrames: Math.max(total, fps),
     fps,
@@ -491,19 +500,72 @@ function BrandCard({ brand, kind }) {
 
 // ──────────────────────────────────────────────────────────────────────────
 // Composición principal.
-//   props.style = { look, grain (0..1), vignette (0..1), letterbox (bool) }
-// ──────────────────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────
+// DISEÑO DE SONIDO — SFX sincronizados con cada transición. El sonido entra
+// ~0.12s ANTES del corte (J-cut): el oído anticipa lo que el ojo verá.
+// Archivos en public/sfx/ (síntesis procedural propia, sin copyright).
+// ──────────────────────────────────────────────────────────────────────
+const SFX_FOR = {
+  dissolve: [["whoosh", 0.32]],
+  lumafade: [["whoosh", 0.28]],
+  filmburn: [["whoosh", 0.45], ["boom", 0.5]],
+  fade: [["whoosh", 0.26]],
+  blurwipe: [["whoosh", 0.38]],
+  slide: [["whoosh", 0.45]],
+  slideup: [["whoosh", 0.45]],
+  zoom: [["boom", 0.55], ["whoosh", 0.35]],
+  whip: [["whoosh", 0.6]],
+  wipe: [["whoosh", 0.4]],
+  glitch: [["click", 0.5], ["whoosh", 0.32]],
+  cut: [["click", 0.38]],
+};
+
+function TransitionSfx({ items, fps }) {
+  const lead = Math.round(fps * 0.12);
+  return items
+    .filter((it) => it.type === "scene" && it.from > 0)
+    .map((it) => {
+      const sounds = SFX_FOR[transitionId(it.scene)] || [["whoosh", 0.32]];
+      return (
+        <Sequence key={`sfx${it.index}`} from={Math.max(0, it.from - lead)} durationInFrames={Math.round(fps * 1.5)}>
+          {sounds.map(([name, vol]) => (
+            <Audio key={name} src={staticFile(`sfx/${name}.wav`)} volume={vol} />
+          ))}
+        </Sequence>
+      );
+    });
+}
+
+// Fundidos de película cuando no hay intro/outro de marca: negro → imagen al
+// arrancar (0.33s) y fundido suave a negro al cerrar (0.4s). Lenguaje de cine
+// sin añadir contenido ajeno al del usuario.
+function FilmFades({ total, fps }) {
+  const frame = useCurrentFrame();
+  const fadeIn = interpolate(frame, [0, Math.round(fps * 0.33)], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const fadeOut = interpolate(frame, [total - Math.round(fps * 0.4), total - 1], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const op = Math.max(fadeIn, fadeOut);
+  if (op <= 0.001) return null;
+  return <AbsoluteFill style={{ pointerEvents: "none", background: "#000", opacity: op, zIndex: 60 }} />;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Composición principal.
+//   props.style = { look, grain (0..1), vignette (0..1), letterbox (bool),
+//                   sfx (bool, default true), branding (bool, default false) }
+// ──────────────────────────────────────────────────────────────────────
 export function Stitch({ scenes = [], brand = {}, fps = 30, style: styleProp = {} }) {
   const accent = brand.accent || "#A78BFA";
   const lookId = styleProp.look && LOOKS[styleProp.look] ? styleProp.look : DEFAULT_LOOK;
   const look = LOOKS[lookId];
+  const branding = styleProp.branding === true; // default: SOLO contenido del usuario
+  const sfx = styleProp.sfx !== false;          // default: sonido cinematográfico ON
   const style = {
     look: lookId,
     grain: typeof styleProp.grain === "number" ? clamp01(styleProp.grain) : 0.18,
     vignette: typeof styleProp.vignette === "number" ? clamp01(styleProp.vignette) : 0.32,
     letterbox: styleProp.letterbox !== false, // ON por defecto: look cine
   };
-  const { items } = computeTimeline(scenes, fps);
+  const { items, total } = computeTimeline(scenes, fps, branding);
   const { height } = useVideoConfig();
   return (
     <AbsoluteFill style={{ background: "#000" }}>
@@ -528,9 +590,11 @@ export function Stitch({ scenes = [], brand = {}, fps = 30, style: styleProp = {
           </Sequence>
         );
       })}
-      {/* Capas globales: grano y letterbox por encima de todo el montaje */}
+      {/* Capas globales: sonido, grano, letterbox y fundidos de película */}
+      {sfx ? <TransitionSfx items={items} fps={fps} /> : null}
       <FilmGrain amount={style.grain * look.grainBoost} />
       <Letterbox enabled={style.letterbox} height={height} />
+      {!branding ? <FilmFades total={total} fps={fps} /> : null}
     </AbsoluteFill>
   );
 }

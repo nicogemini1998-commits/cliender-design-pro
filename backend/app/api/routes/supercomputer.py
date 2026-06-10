@@ -267,6 +267,8 @@ class RenderStyle(BaseModel):
     grain: float | None = None            # intensidad film grain 0..1 (default 0.18)
     vignette: float | None = None         # intensidad vignette 0..1 (default 0.32)
     letterbox: bool | None = None         # barras cinemascope (default True)
+    sfx: bool | None = None               # efectos de sonido en transiciones (default True)
+    branding: bool | None = None          # intro/outro de marca (default False — solo contenido del usuario)
 
 
 class RenderRequest(BaseModel):

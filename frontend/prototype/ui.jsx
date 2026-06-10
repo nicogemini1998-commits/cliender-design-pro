@@ -427,6 +427,20 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
   const [look, setLook] = React.useState("cine");
   const [letterbox, setLetterbox] = React.useState(true);
   const [grain, setGrain] = React.useState(true);
+  // ── Editor de película (modal) ──
+  const [editorOpen, setEditorOpen] = React.useState(false);
+  const [subs, setSubs] = React.useState(false);          // subtítulos SOLO si el usuario los pide
+  const [sfx, setSfx] = React.useState(true);             // diseño de sonido cinematográfico
+  const [branding, setBranding] = React.useState(false);  // intro/outro de marca (off = solo tu contenido)
+  // Swatches por look para las tarjetas del editor
+  const LOOK_SWATCH = {
+    cine: ["#0b4a5c", "#ffc7a0", "#1a1a22"],
+    golden: ["#8a5a20", "#ffd9a0", "#2a2014"],
+    noir: ["#0a0a0a", "#e8e8e8", "#555555"],
+    vintage: ["#2a2620", "#f7ead2", "#9a8468"],
+    clean: ["#e8e8f0", "#7C3AED", "#1f1f28"],
+    none: ["#333333", "#666666", "#999999"],
+  };
   const _delTimer = React.useRef(null);
 
   const askDelete = (e, id) => {
@@ -474,8 +488,8 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
       .map((it) => ({
         url: it.url,
         kind: it.kind === "video" ? "video" : "image",
-        duration_s: parseFloat(String(it.duration || "")) || 5,
-        caption: (it.prompt || "").slice(0, 90),
+        duration_s: parseFloat(String(it.duration || "")) || (it.kind === "video" ? 5 : 2.5),
+        caption: subs ? (it.prompt || "").slice(0, 90) : "",
         transition,
       }));
     if (scenes.length === 0) return;
@@ -483,11 +497,12 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
     try {
       const r = await fetch(`${API}/chat/render`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenes, brand: { name: "Cliender", accent: "#7C3AED" }, style: { look, letterbox, grain: grain ? 0.18 : 0 }, fps: 24, width: 1080, height: 1920 }),
+        body: JSON.stringify({ scenes, brand: { name: "Cliender", accent: "#7C3AED" }, style: { look, letterbox, grain: grain ? 0.18 : 0, sfx, branding }, fps: 24, width: 1080, height: 1920 }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.detail || data.error || `HTTP ${r.status}`);
       setResult(data);
+      setEditorOpen(false);
       window.__notify && window.__notify({ kind: "success", icon: "✨", title: "Vídeo ensamblado", body: `${scenes.length} escenas · ${data.duration_s}s` });
     } catch (e) {
       setResult({ error: String(e && e.message ? e.message : e) });
@@ -589,42 +604,8 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
         {selecting && !batchMode && (
           <div className="gallery-assemble-bar">
             <span className="mono">
-              {selected.length} escena{selected.length === 1 ? "" : "s"} · toca para ordenar
+              {selected.length} escena{selected.length === 1 ? "" : "s"} · toca en orden — ese será el montaje
             </span>
-            {selected.length >= 2 && (
-              <div className="vedit-cine-panel" style={{ display: "flex", flexDirection: "column", gap: 6, marginRight: "auto", maxWidth: 460 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <span className="mono" style={{ fontSize: 10, opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.1em" }}>Transición</span>
-                  <select className="vedit-select" style={{ height: 28, fontSize: 12, padding: "2px 8px" }}
-                    value={transition} onChange={(e) => setTransition(e.target.value)}>
-                    {Object.entries(VIDEO_TRANSITIONS).map(([id, t]) => (
-                      <option key={id} value={id}>{t.label}</option>
-                    ))}
-                  </select>
-                  <span className="mono" style={{ fontSize: 10, opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.1em" }}>Look</span>
-                  <select className="vedit-select" style={{ height: 28, fontSize: 12, padding: "2px 8px" }}
-                    value={look} onChange={(e) => setLook(e.target.value)}>
-                    {Object.entries(VIDEO_LOOKS).map(([id, l]) => (
-                      <option key={id} value={id}>{l.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, opacity: 0.8, cursor: "pointer" }}>
-                    <input type="checkbox" checked={letterbox} onChange={(e) => setLetterbox(e.target.checked)} />
-                    Letterbox cine
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, opacity: 0.8, cursor: "pointer" }}>
-                    <input type="checkbox" checked={grain} onChange={(e) => setGrain(e.target.checked)} />
-                    Grano 16mm
-                  </label>
-                </div>
-                <span style={{ fontSize: 11, opacity: 0.65, lineHeight: 1.35 }}>
-                  {VIDEO_TRANSITIONS[transition] && VIDEO_TRANSITIONS[transition].description}{" "}
-                  {VIDEO_LOOKS[look] && <em style={{ opacity: 0.85 }}>· {VIDEO_LOOKS[look].description}</em>}
-                </span>
-              </div>
-            )}
             <div style={{ display: "flex", gap: 6 }}>
               {selectedVideos.length > 0 && (
                 <button className="gallery-assemble-go vedit-batch-trigger"
@@ -641,12 +622,133 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
               )}
               <button className="gallery-assemble-go"
                 disabled={selected.length === 0 || rendering}
-                onClick={assemble}>
-                {rendering ? "Ensamblando…" : `Ensamblar (${selected.length})`}
+                style={{ background: "rgba(124,58,237,0.22)", borderColor: "rgba(167,139,250,0.5)", fontWeight: 600 }}
+                onClick={() => setEditorOpen(true)}>
+                {rendering ? "Renderizando…" : `🎬 Montar película (${selected.length})`}
               </button>
             </div>
           </div>
         )}
+
+        {/* ── Editor de película — modal cinematográfico ── */}
+        {editorOpen && (() => {
+          const selItems = selected.map((id) => items.find((i) => i.id === id)).filter(Boolean);
+          const durOf = (it) => parseFloat(String(it.duration || "")) || (it.kind === "video" ? 5 : 2.5);
+          const totalS = selItems.reduce((a, it) => a + durOf(it), 0);
+          const move = (idx, dir) => {
+            setSelected((prev) => {
+              const next = [...prev];
+              const j = idx + dir;
+              if (j < 0 || j >= next.length) return prev;
+              [next[idx], next[j]] = [next[j], next[idx]];
+              return next;
+            });
+          };
+          const LBL = { fontSize: 10, opacity: 0.65, textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 8 };
+          const DSC = { fontSize: 11, opacity: 0.6, lineHeight: 1.4, marginTop: 7 };
+          const SBTN = { flex: 1, background: "none", border: "none", color: "#cfcfdd", fontSize: 10, padding: "4px 0", cursor: "pointer" };
+          return (
+            <div className="form-popup-backdrop" style={{ zIndex: 400 }} onClick={() => !rendering && setEditorOpen(false)}>
+              <div className="form-popup" onClick={(e) => e.stopPropagation()}
+                style={{ maxWidth: 740, width: "94vw", maxHeight: "90vh", overflowY: "auto", padding: 0 }}>
+
+                <div style={{ padding: "20px 24px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div>
+                    <div style={{ fontSize: 17, fontWeight: 600 }}>🎬 Editor de película</div>
+                    <div className="mono" style={{ fontSize: 10.5, opacity: 0.6, marginTop: 3, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                      {selItems.length} escena{selItems.length === 1 ? "" : "s"} · ~{Math.round(totalS)}s · 1080×1920 · solo tu contenido
+                    </div>
+                  </div>
+                  <button className="super-close" onClick={() => !rendering && setEditorOpen(false)}>✕</button>
+                </div>
+
+                <div style={{ padding: "16px 24px 22px", display: "flex", flexDirection: "column", gap: 18 }}>
+
+                  <div>
+                    <div className="mono" style={LBL}>Secuencia — orden de aparición</div>
+                    <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 6 }}>
+                      {selItems.map((it, idx) => (
+                        <div key={it.id} style={{ position: "relative", flex: "0 0 auto", width: 96, borderRadius: 10, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", background: "#000" }}>
+                          {it.kind === "video"
+                            ? <video src={it.url} muted style={{ width: 96, height: 128, objectFit: "cover", display: "block" }} />
+                            : <img src={it.url} alt="" style={{ width: 96, height: 128, objectFit: "cover", display: "block" }} />}
+                          <div style={{ position: "absolute", top: 5, left: 5, width: 18, height: 18, borderRadius: 6, background: "rgba(124,58,237,0.92)", color: "#fff", fontSize: 10.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{idx + 1}</div>
+                          <div className="mono" style={{ position: "absolute", bottom: 26, right: 5, fontSize: 9, background: "rgba(0,0,0,0.6)", padding: "1px 5px", borderRadius: 4, color: "#fff" }}>{durOf(it)}s</div>
+                          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, display: "flex", background: "rgba(8,8,13,0.85)" }}>
+                            <button onClick={() => move(idx, -1)} disabled={idx === 0} style={{ ...SBTN, opacity: idx === 0 ? 0.3 : 1 }} title="Mover antes">◀</button>
+                            <button onClick={() => toggleSelect(it.id)} style={{ ...SBTN, color: "#f87171" }} title="Quitar de la película">✕</button>
+                            <button onClick={() => move(idx, 1)} disabled={idx === selItems.length - 1} style={{ ...SBTN, opacity: idx === selItems.length - 1 ? 0.3 : 1 }} title="Mover después">▶</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mono" style={LBL}>Look cinematográfico</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                      {Object.entries(VIDEO_LOOKS).map(([id, l]) => (
+                        <button key={id} onClick={() => setLook(id)}
+                          style={{
+                            textAlign: "left", padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                            background: look === id ? "rgba(124,58,237,0.16)" : "rgba(255,255,255,0.03)",
+                            border: look === id ? "1.5px solid rgba(167,139,250,0.65)" : "1px solid rgba(255,255,255,0.08)",
+                            color: "inherit",
+                          }}>
+                          <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+                            {(LOOK_SWATCH[id] || []).map((c) => <span key={c} style={{ width: 13, height: 13, borderRadius: "50%", background: c, border: "1px solid rgba(255,255,255,0.18)" }} />)}
+                          </div>
+                          <div style={{ fontSize: 12.5, fontWeight: 600 }}>{l.label}</div>
+                        </button>
+                      ))}
+                    </div>
+                    <div style={DSC}>{VIDEO_LOOKS[look] && VIDEO_LOOKS[look].description}</div>
+                  </div>
+
+                  <div>
+                    <div className="mono" style={LBL}>Transición entre escenas</div>
+                    <select className="vedit-select" style={{ width: "100%", height: 34, fontSize: 13, padding: "4px 10px" }}
+                      value={transition} onChange={(e) => setTransition(e.target.value)}>
+                      {Object.entries(VIDEO_TRANSITIONS).map(([id, t]) => <option key={id} value={id}>{t.label}</option>)}
+                    </select>
+                    <div style={DSC}>{VIDEO_TRANSITIONS[transition] && VIDEO_TRANSITIONS[transition].description}</div>
+                  </div>
+
+                  <div>
+                    <div className="mono" style={LBL}>Acabado de película</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+                      {[
+                        { k: "sfx", v: sfx, set: setSfx, t: "Sonido cinematográfico", d: "Whooshes e impactos sincronizados con cada transición (J-cut)" },
+                        { k: "letterbox", v: letterbox, set: setLetterbox, t: "Letterbox cine", d: "Barras panorámicas estilo película" },
+                        { k: "grain", v: grain, set: setGrain, t: "Grano 16mm", d: "Textura de película analógica" },
+                        { k: "subs", v: subs, set: setSubs, t: "Subtítulos", d: "Rótulo editorial con el texto de cada escena (solo si lo quieres)" },
+                        { k: "branding", v: branding, set: setBranding, t: "Intro/Outro de marca", d: "Cabecera y cierre Cliender. Apagado = SOLO tu contenido" },
+                      ].map((o) => (
+                        <label key={o.k} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "9px 11px", borderRadius: 10, cursor: "pointer", background: o.v ? "rgba(124,58,237,0.10)" : "rgba(255,255,255,0.025)", border: o.v ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.07)" }}>
+                          <input type="checkbox" checked={o.v} onChange={(e) => o.set(e.target.checked)} style={{ marginTop: 2 }} />
+                          <span>
+                            <span style={{ display: "block", fontSize: 12.5, fontWeight: 600 }}>{o.t}</span>
+                            <span style={{ display: "block", fontSize: 10.5, opacity: 0.6, lineHeight: 1.35, marginTop: 2 }}>{o.d}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center", borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: 16 }}>
+                    {rendering && <span className="mono" style={{ fontSize: 11, opacity: 0.7, marginRight: "auto" }}>⏳ Renderizando película… 1-2 min</span>}
+                    <button className="btn-soft" disabled={rendering} onClick={() => setEditorOpen(false)}>Cancelar</button>
+                    <button className="gallery-assemble-go" disabled={selItems.length === 0 || rendering} onClick={assemble}
+                      style={{ background: "rgba(124,58,237,0.25)", borderColor: "rgba(167,139,250,0.55)", fontWeight: 600, padding: "8px 18px" }}>
+                      {rendering ? "Renderizando…" : "🎬 Renderizar película"}
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── Barra de selección — configurar subtítulos en lote ── */}
         {selecting && batchMode === "config" && (
