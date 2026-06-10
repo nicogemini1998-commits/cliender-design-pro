@@ -123,12 +123,12 @@ const NODE_DEFAULTS = {
     tipo: "image",
     cantidad: 1,
     agentId: "ag-shaq",
-    modelId: "gpt-imagenes-2",
+    modelId: "nano-banana-2",
   }),
   image: () => ({
     status: "idle",
     prompt: "",
-    modelId: "gpt-imagenes-2",
+    modelId: "nano-banana-2",
     aspect: "1:1",
     crudo: false,
     seed: null,
@@ -1316,6 +1316,10 @@ function App() {
         } else {
           setGallery(remoteItems);
         }
+        // CRÍTICO: limpiar la clave legacy SIEMPRE tras hidratar. Nadie la escribe ya;
+        // si persiste, cada arranque "re-migra" items que el usuario BORRÓ (no están en
+        // remoto porque se eliminaron) y los resucita en Supabase. Borrar = borrar.
+        try { localStorage.removeItem("cliender-gallery"); } catch {}
       })
       .catch(() => {
         // Si falla Supabase, cargar desde localStorage como fallback
@@ -1337,10 +1341,15 @@ function App() {
     }).catch(() => {});
   }, [_galleryApi]);
 
-  // Eliminar item de la galería compartida
+  // Eliminar item de la galería compartida — verificado: si el backend falla, reintenta 1 vez
+  // y avisa; sin esto el borrado parecía funcionar pero el item resucitaba al recargar.
   const removeFromSharedGallery = useCallback((itemId) => {
     setGallery(g => g.filter(x => x.id !== itemId));
-    fetch(_galleryApi + "/gallery/item/" + itemId, { method: "DELETE" }).catch(() => {});
+    const del = () => fetch(_galleryApi + "/gallery/item/" + itemId, { method: "DELETE" })
+      .then(r => r.json()).then(d => { if (!d.ok) throw new Error("delete not persisted"); });
+    del().catch(() => del()).catch(() => {
+      window.__notify?.({ kind: "error", icon: "⚠", title: "Borrado no persistido", body: "El servidor no confirmó el borrado — puede reaparecer al recargar. Reintenta." });
+    });
   }, [_galleryApi]);
 
   // Clients
@@ -1556,6 +1565,18 @@ function App() {
   })();
   const _moodboardReducer = moodboardReducer || window.moodboardReducer || ((s) => s);
   const [moodboards, dispatchMoodboards] = useReducer(_moodboardReducer, _initialMoodboards);
+  // Tombstones — ids de moodboards borrados a propósito. Persisten en localStorage
+  // para que el poll cross-user NUNCA los resucite (el server tarda en borrar y el
+  // poll de 30s podría traerlos de vuelta). Un borrado = permanente.
+  const mbTombstonesRef = React.useRef((() => {
+    try { return new Set(JSON.parse(localStorage.getItem('cdp-mb-deleted') || '[]')); }
+    catch (e) { return new Set(); }
+  })());
+  const _mbTombstone = (id) => {
+    if (!id) return;
+    mbTombstonesRef.current.add(id);
+    try { localStorage.setItem('cdp-mb-deleted', JSON.stringify([...mbTombstonesRef.current])); } catch (e) {}
+  };
   // Persistencia moodboards: localStorage (cache local) + cross-user vía /moodboards/{id}.
   // El upsert es debounced por id en __moodboards (800ms), y solo se dispara si la
   // firma del mb cambió desde la última vez (no re-envia lo que ya estaba sincronizado).
@@ -1587,7 +1608,7 @@ function App() {
       }
     }
     for (const id of prevMbSigsRef.current.keys()) {
-      if (!currentSigs.has(id)) window.__moodboards.remove(id);
+      if (!currentSigs.has(id)) { _mbTombstone(id); window.__moodboards.remove(id); }
     }
     prevMbSigsRef.current = currentSigs;
   }, [moodboards]);
@@ -1607,6 +1628,8 @@ function App() {
       // Si difiere, gana el de updatedAt mayor. Si ninguno tiene timestamp, gana LOCAL
       // (asumimos que es una edición en vuelo que todavía no se ha subido).
       for (const rmt of remote) {
+        // Si el id está en tombstones, fue borrado a propósito: ignorar y limpiar server.
+        if (mbTombstonesRef.current.has(rmt.id)) { window.__moodboards.remove(rmt.id); continue; }
         const loc = localById.get(rmt.id);
         if (!loc) { merged.push(rmt); continue; }
         if (_mbSig(rmt) === _mbSig(loc)) { merged.push(loc); continue; }
@@ -1733,6 +1756,25 @@ function App() {
     }, 1400);
   }, []);
 
+  // Mapa de compatibilidad de conexiones (source → targets válidos).
+  // Tipos reales del canvas: prompt · image · video · reference · imageref · voice · note · output.
+  // Tipo desconocido (ej. group) → no se bloquea, para no romper flujos futuros.
+  const EDGE_COMPAT = {
+    prompt:    ["image", "video", "output", "prompt"],
+    image:     ["prompt", "video", "output"],
+    video:     ["output", "prompt"],
+    reference: ["image", "video", "prompt"],
+    imageref:  ["image", "video", "prompt"],
+    voice:     ["video"],
+    note:      [],
+    output:    ["prompt", "image", "video"],
+  };
+  const isEdgeAllowed = (srcType, tgtType) => {
+    const allowed = EDGE_COMPAT[srcType];
+    if (!allowed) return true;
+    return allowed.includes(tgtType);
+  };
+
   // expose to handle children
   useEffect(() => {
     window.__handleMouseDown = (e, nodeId, side) => {
@@ -1767,6 +1809,15 @@ function App() {
         if (tgt && tgt.classList.contains("nh") && tgt.dataset.side === "left") {
           const targetId = tgt.dataset.nodeId;
           if (targetId && targetId !== nodeId) {
+            // Validación por tipo: bloquear conexiones sin sentido (ej. voice → image)
+            const _tgtNode = nodes.find((n) => n.id === targetId);
+            if (_tgtNode && !isEdgeAllowed(sourceNode.type, _tgtNode.type)) {
+              window.__notify?.({
+                kind: "error", icon: "✖", title: "Conexión no válida",
+                body: `${sourceNode.type} → ${_tgtNode.type} no está permitido.`,
+              });
+              return;
+            }
             setEdges((es) => {
               if (es.find((e) => e.source === nodeId && e.target === targetId)) return es;
               const newId = "e-" + Math.random().toString(36).slice(2, 7);
@@ -1820,6 +1871,16 @@ function App() {
   // Crear nodo conectado desde el menú flotante
   const addConnectedNode = useCallback((type) => {
     if (!connectMenu) return;
+    // Validación por tipo también desde el menú "Conectar a…"
+    const _srcNode = nodesRef.current.find((n) => n.id === connectMenu.sourceId);
+    if (_srcNode && !isEdgeAllowed(_srcNode.type, type)) {
+      window.__notify?.({
+        kind: "error", icon: "✖", title: "Conexión no válida",
+        body: `${_srcNode.type} → ${type} no está permitido.`,
+      });
+      setConnectMenu(null);
+      return;
+    }
     const id = `n-${type}-${Math.random().toString(36).slice(2, 6)}`;
     const x = Math.max(20, connectMenu.worldX - 10);
     const y = Math.max(20, connectMenu.worldY - 40);
@@ -2219,7 +2280,11 @@ function App() {
   }, [edges, nodes]);
 
 
-  const runNode = useCallback(async (nodeId, inheritedBrief = null, inheritedFrameUrl = null) => {
+  // Lock anti-duplicados: si un nodo ya está ejecutándose, una segunda llamada (doble clic,
+  // cascada paralela) se ignora. Evita OutputNodes duplicados. El wrapper runNode (más abajo)
+  // añade el nodeId al entrar y lo elimina en TODOS los caminos de salida via try/finally.
+  const _runningLock = useRef(new Set());
+  const _runNodeImpl = useCallback(async (nodeId, inheritedBrief = null, inheritedFrameUrl = null) => {
     const node = nodes.find((n) => n.id === nodeId);
     if (!node) return;
     // Anti doble-click: SOLO en invocación directa del usuario (sin inheritedBrief).
@@ -2628,8 +2693,12 @@ function App() {
       const API_BASE = window.CDPRO_CONFIG.API_BASE;
       const url = taskId ? `${API_BASE}/generate/retry/${taskId}` : `${API_BASE}/generate`;
       const body = taskId ? JSON.stringify({ media_kind: genBody.media_kind }) : JSON.stringify(genBody);
+      // Sondeo continuo con peticiones CORTAS: el backend vuelve en <=~24s con task_id si KIE
+      // sigue procesando; aqui reanudamos via /retry. Ninguna peticion queda retenida minutos
+      // (que un proxy/navegador mataria) -> conexion estable y eficiente.
+      const MAX_RETRIES = 40; // ~40 ciclos cortos cubren generaciones largas (video / gpt-image)
       const _abort = new AbortController();
-      const _abortTimer = setTimeout(() => _abort.abort("client_timeout_380s"), 380000);
+      const _abortTimer = setTimeout(() => _abort.abort("client_timeout"), 45000); // > budget backend (24s)
       try {
         const res = await fetch(url, {
           method: "POST",
@@ -2637,17 +2706,32 @@ function App() {
           body,
           signal: _abort.signal,
         });
-        const data = await res.json();
-        if (data.url) return data;
-        if (data.error && data.error.toLowerCase().includes("timeout") && data.task_id && retryCount < 2) {
-          window.__notify?.({
-            kind: "info", icon: "⟳", title: "Kie tardando — reintentando",
-            body: `task ${data.task_id.slice(0, 8)}… intento ${retryCount + 2}/3`,
+        const data = await res.json().catch(() => ({}));
+        if (data && data.url) return data;
+        // Error DURO (contenido bloqueado, modelo no permitido, fallo real) -> mostrar ya.
+        if (data && data.error && !/timeout|procesando|generating|processing/i.test(data.error)) return data;
+        // Sigue procesando: reanuda sondeo con el task_id devuelto o el que ya teniamos.
+        const nextTask = (data && data.task_id) || taskId;
+        if (nextTask && retryCount < MAX_RETRIES) {
+          if (retryCount === 0 || retryCount % 6 === 0) window.__notify?.({
+            kind: "info", icon: "⟳", title: "Generando con Kie.ai",
+            body: `Procesando · task ${String(nextTask).slice(0, 8)}…`,
           });
-          await new Promise(r => setTimeout(r, 20000));
-          return tryGenerate(genBody, retryCount + 1, data.task_id);
+          await new Promise(r => setTimeout(r, 2500));
+          return tryGenerate(genBody, retryCount + 1, nextTask);
         }
-        return data;
+        return data || { url: "", error: "Respuesta vacia del servidor" };
+      } catch (e) {
+        // Corte de red/proxy/abort: si ya tenemos task_id, reanuda (sin recrear tarea ni gastar credito extra).
+        if (taskId && retryCount < MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, 2500));
+          return tryGenerate(genBody, retryCount + 1, taskId);
+        }
+        if (!taskId && retryCount < 3) {
+          await new Promise(r => setTimeout(r, 1500));
+          return tryGenerate(genBody, retryCount + 1, null);
+        }
+        throw e;
       } finally {
         clearTimeout(_abortTimer);
       }
@@ -2662,7 +2746,7 @@ function App() {
       );
       if (existingOutputNode) {
         _outputNodeId = existingOutputNode.id;
-        setNodes((ns) => ns.map((n) => n.id === _outputNodeId ? { ...n, data: { ...n.data, status: "running", kind: node.type, modelId: node.data.modelId } } : n));
+        setNodes((ns) => ns.map((n) => n.id === _outputNodeId ? { ...n, data: { ...n.data, status: "running", kind: node.type, modelId: node.data.modelId, pending: cantidad } } : n));
       } else {
         _outputNodeId = `n-output-${Math.random().toString(36).slice(2, 6)}`;
         const sourceNode = nodes.find((n) => n.id === nodeId);
@@ -2677,7 +2761,7 @@ function App() {
         setNodes((ns) => {
           const newNs = [...ns, {
             id: outId, type: "output", x: newX, y: newY,
-            data: { ...NODE_DEFAULTS.output(), kind: node.type, modelId: node.data.modelId, items: [], status: "running" },
+            data: { ...NODE_DEFAULTS.output(), kind: node.type, modelId: node.data.modelId, items: [], status: "running", pending: cantidad },
           }];
           if (!parentGroup) return newNs;
           const updatedMembers = [...(parentGroup.data?.members || []), outId];
@@ -2705,6 +2789,10 @@ function App() {
       }
     }
 
+    // Consistencia (R2): semilla estable por nodo. Sin seed, KIE randomiza -> "cada vez sale distinto".
+    // Asignamos una y la persistimos; regenerar reusa la misma -> mismo resultado. El boton dado (🎲) la cambia.
+    let _baseSeed = (node.data.seed != null) ? Number(node.data.seed) : Math.floor(Math.random() * 1e9);
+    if (node.data.seed == null) patchNodeData(nodeId, { seed: _baseSeed });
     for (let i = 0; i < cantidad; i++) {
       let url = "";
       let genError = null;
@@ -2716,6 +2804,7 @@ function App() {
           prompt: brief,
           aspect: node.data.aspect || null,
           duration: node.type === "video" ? (parseInt(String(node.data.duration || "5").replace(/\D/g,""), 10) || 5) : null,
+          seed: _baseSeed + i,  // base + i: N items = N variaciones controladas; regenerar da el mismo set
           first_frame_url: firstFrameUrl || null,
           voice_prompt: voicePromptForVideo || null,
           // reference_images: siempre se pasa cuando hay imagen upstream, sin importar tipo
@@ -2819,8 +2908,13 @@ function App() {
         moodboardId: activeMoodboardId || null,
         projectId: activeProjectId || null,
         createdAt: Date.now() + i,
+        updatedAt: Date.now() + i, // merge multi-usuario por updatedAt — sin esto el item podía perderse
         nodeId,
       });
+      // Live (R1): muestra el item recien hecho + loaders restantes (pending) en el OutputNode.
+      setNodes((ns) => ns.map((n) => n.id === _outputNodeId
+        ? { ...n, data: { ...n.data, status: "running", kind: node.type, modelId: node.data.modelId, pending: Math.max(0, cantidad - newItems.length), items: [...newItems, ...((n.data.items || []).filter(it => it.url && !newItems.some(ni => ni.id === it.id)))] } }
+        : n));
     }
 
     patchNodeData(nodeId, { status: "done", lastUrl: newItems[0].url });
@@ -2848,7 +2942,7 @@ function App() {
     // No buscamos en edges (closure stale) — usamos el id capturado arriba.
     setNodes((ns) => ns.map((n) =>
       n.id === _outputNodeId
-        ? { ...n, data: { ...n.data, status: "done", kind: node.type, modelId: node.data.modelId, items: [...newItems, ...(n.data.items?.filter(i => i.url) || [])] } }
+        ? { ...n, data: { ...n.data, status: "done", kind: node.type, modelId: node.data.modelId, pending: 0, items: [...newItems, ...(n.data.items?.filter(i => i.url) || [])] } }
         : n
     ));
 
@@ -2867,6 +2961,24 @@ function App() {
       if (upstreamImage) setRunningEdges((s) => { const n = new Set(s); n.delete(upstreamImage.edgeId); return n; });
     }, 400);
   }, [nodes, edges, findUpstreamPrompt, findUpstreamImage, findUpstreamVoice, patchNodeData, lockedMb, pulseEdge]);
+
+  // Wrapper público con lock por nodeId. try/finally garantiza liberar el lock en
+  // TODOS los caminos de salida de _runNodeImpl (éxito, error o return temprano).
+  const runNode = useCallback(async (nodeId, inheritedBrief = null, inheritedFrameUrl = null) => {
+    if (_runningLock.current.has(nodeId)) {
+      window.__notify?.({
+        kind: "info", icon: "⏳", title: "Nodo ya en ejecución",
+        body: "Este nodo ya se está generando — espera a que termine para evitar duplicados.",
+      });
+      return;
+    }
+    _runningLock.current.add(nodeId);
+    try {
+      return await _runNodeImpl(nodeId, inheritedBrief, inheritedFrameUrl);
+    } finally {
+      _runningLock.current.delete(nodeId);
+    }
+  }, [_runNodeImpl]);
 
   // --- output node item actions -------------------------------------------
   const [previewItem, setPreviewItem] = useState(null);

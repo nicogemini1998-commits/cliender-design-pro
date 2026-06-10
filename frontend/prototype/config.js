@@ -38,24 +38,51 @@ window.__store = {
   },
 
   async get(collection) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort("store_timeout"), 12000); // nunca colgar el arranque si la red se estanca
     try {
-      const r = await fetch(`${this._api()}/store/${collection}`, { cache: "no-store" });
+      const r = await fetch(`${this._api()}/store/${collection}`, { cache: "no-store", signal: ctrl.signal });
       if (!r.ok) return null;
       const d = await r.json();
       return Array.isArray(d.items) ? d.items : null;
     } catch (e) {
       return null;
+    } finally {
+      clearTimeout(t);
     }
   },
 
   put(collection, items) {
     clearTimeout(this._timers[collection]);
     this._timers[collection] = setTimeout(() => {
-      fetch(`${this._api()}/store/${collection}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: Array.isArray(items) ? items : [] }),
-      }).catch(() => {});
+      var api = this._api();
+      var payload = JSON.stringify({ items: Array.isArray(items) ? items : [] });
+      // Intento + 2 reintentos con backoff (1s, 3s). Si los 3 fallan → aviso visible.
+      // Antes el .catch(() => {}) silencioso podía perder cambios sin avisar a nadie.
+      var BACKOFF_MS = [1000, 3000];
+      var attempt = function (n) {
+        fetch(api + "/store/" + collection, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: payload,
+        })
+          .then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+          })
+          .catch(function () {
+            if (n < BACKOFF_MS.length) {
+              setTimeout(function () { attempt(n + 1); }, BACKOFF_MS[n]);
+              return;
+            }
+            window.__notify && window.__notify({
+              kind: "error",
+              icon: "⚠",
+              title: "Guardado no confirmado",
+              body: 'No se pudo sincronizar "' + collection + '" — tus cambios pueden perderse al recargar.',
+            });
+          });
+      };
+      attempt(0);
     }, 800);
   },
 

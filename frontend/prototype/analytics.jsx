@@ -37,21 +37,32 @@ function useAnalytics(period) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const load = useCallback(async (silent) => {
+    // silent=true → refresh de fondo sin parpadeo de loader (auto-refresh 30s)
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const r = await fetch(`${API}/analytics/summary?period=${period}`);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setSummary(await r.json());
     } catch (e) {
-      setError(e.message);
+      if (!silent) setError(e.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [period]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Tiempo real: re-fetch cada 30s mientras el panel está montado.
+  // El interval se limpia en unmount (o al cambiar de periodo).
+  useEffect(() => {
+    const REFRESH_MS = 30000;
+    const t = setInterval(() => { load(true); }, REFRESH_MS);
+    return () => clearInterval(t);
+  }, [load]);
   return { summary, loading, error, reload: load };
 }
 

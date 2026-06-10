@@ -14,8 +14,8 @@
 // Catálogo Kid.ai
 // ---------------------------------------------------------------------------
 const KID_IMAGE_MODELS = [
-  { id: "gpt-imagenes-2",  label: "GPT-2 IMAGE",   hint: "texto→imagen · alto detalle" },
-  { id: "nano-banana-2",   label: "Nano Banana",   hint: "referencias · fusión 2K · personas reales" },
+  { id: "nano-banana-2",   label: "Nano Banana",   hint: "rápido · 2K · texto o referencias (recomendado)" },
+  { id: "gpt-imagenes-2",  label: "GPT-2 IMAGE",   hint: "máximo detalle · LENTO (1-6 min)" },
   // Con imágenes de referencia conectadas, el backend usa SIEMPRE nano-banana-2 (2048×2048)
 ];
 const KID_VIDEO_MODELS = [
@@ -571,7 +571,7 @@ function PromptNode({ node, onChange, onMouseDownHeader, onClose, selected, onGe
             <div style={{ flex: 1 }}>
               <div className="field-label">Modelo</div>
               <HeaderModelPill
-                value={d.modelId || (d.tipo === "image" ? "gpt-imagenes-2" : "seedance-2.0")}
+                value={d.modelId || (d.tipo === "image" ? "nano-banana-2" : "seedance-2.0")}
                 options={d.tipo === "image" ? KID_IMAGE_MODELS : KID_VIDEO_MODELS}
                 onChange={(v) => onChange({ modelId: v })}
                 accent={accent}
@@ -1115,8 +1115,8 @@ uniform float time;
 
 void main(void) {
   vec2 uv = (gl_FragCoord.xy * 2.0 - resolution.xy) / min(resolution.x, resolution.y);
-  float t = time * 0.05;
-  float lineWidth = 0.002;
+  float t = time * 0.14;
+  float lineWidth = 0.0038;
 
   vec3 color = vec3(0.0);
   for (int j = 0; j < 3; j++) {
@@ -1125,7 +1125,7 @@ void main(void) {
     }
   }
 
-  gl_FragColor = vec4(color[0], color[1], color[2], 1.0);
+  gl_FragColor = vec4(color[0] + 0.018, color[1] + 0.010, color[2] + 0.035, 1.0);
 }
 `;
 
@@ -1267,7 +1267,23 @@ function OutputNode({ node, onChange, onMouseDownHeader, onClose, selected, onIt
   const d = node.data;
   const items = d.items || [];
   const kind = d.kind || "image";   // 'image' | 'video'
-  const cols = items.length === 1 ? 1 : items.length <= 4 ? 2 : 3;
+  const pending = (d.status === "running") ? Math.max(0, (d.pending != null ? d.pending : (items.length === 0 ? 1 : 0))) : 0;
+  const totalCells = items.length + pending;
+  const cols = totalCells <= 1 ? 1 : totalCells <= 4 ? 2 : 3;
+  // Doble confirmación de borrado por celda: 1er clic arma (rojo), 2º clic borra de verdad.
+  const [armedDel, setArmedDel] = React.useState(null);
+  const _armTimer = React.useRef(null);
+  const askCellDelete = (it) => {
+    if (armedDel === it.id) {
+      clearTimeout(_armTimer.current);
+      setArmedDel(null);
+      onItemAction?.("delete", node.id, it);
+    } else {
+      setArmedDel(it.id);
+      clearTimeout(_armTimer.current);
+      _armTimer.current = setTimeout(() => setArmedDel(null), 3000);
+    }
+  };
 
   return (
     <div className={"node-v2 output-node " + (selected ? "is-selected" : "")} data-accent="green">
@@ -1301,25 +1317,16 @@ function OutputNode({ node, onChange, onMouseDownHeader, onClose, selected, onIt
       </div>
 
       <div className="node-v2-body">
-        {items.length === 0 && d.status === "error" ? (
+        {totalCells === 0 && d.status === "error" ? (
           <div className="output-empty mono" style={{ color: "#FB7185", lineHeight: 1.5, padding: "10px 12px", textAlign: "left" }}>
             ✖ Generación falló
             {d.error ? <div style={{ marginTop: 6, fontSize: 10, opacity: 0.85, color: "#EBEAE4" }}>{String(d.error).slice(0, 180)}</div> : null}
             <div style={{ marginTop: 6, fontSize: 10, opacity: 0.7 }}>{/copyright|restricc/i.test(String(d.error||"")) ? "El vídeo resultante reproduce un personaje/marca con copyright. Seedance rechaza el OUTPUT — reintentar gastará crédito y volverá a fallar. Usa personajes originales (no IP reconocible)." : (/load failed|first.frame/i.test(String(d.error||"")) ? "Si usas first-frame, no añadas además imágenes de referencia." : "Reintenta el nodo.")}</div>
           </div>
-        ) : items.length === 0 && d.status !== "running" ? (
+        ) : totalCells === 0 ? (
           <div className="output-empty mono">esperando contenido…</div>
-        ) : items.length === 0 && d.status === "running" ? (
-          <div className="output-loading shader-loader">
-            {/* Shader GLSL (Three.js raw) de ondas fluidas de color — sin texto en el medio (ver ShaderLoader). */}
-            <ShaderLoader className="shader-loader-bg" />
-            {/* Estado discreto en una línea mono abajo — NO va centrado sobre el shader. */}
-            <div className="shader-loader-status mono">
-              {kind === "video" ? "Renderizando vídeo · 30–90s" : "Generando imagen · 30–60s"}
-            </div>
-          </div>
         ) : (
-          <div className={"output-grid output-grid-cols-" + cols} style={items.length > 3 ? { maxHeight: 320, overflowY: 'auto', scrollbarWidth: 'thin' } : undefined}>
+          <div className={"output-grid output-grid-cols-" + cols} style={totalCells > 3 ? { maxHeight: 320, overflowY: 'auto', scrollbarWidth: 'thin' } : undefined}>
             {items.map((it, i) => {
               const isActive = d.lastUrl === it.url;
               return (
@@ -1386,15 +1393,25 @@ function OutputNode({ node, onChange, onMouseDownHeader, onClose, selected, onIt
                     onClick={() => onItemAction?.("download", node.id, it)}
                   ><Icon.Download style={{ width: 13, height: 13 }} /></button>
                   <button
-                    title="Eliminar"
+                    title={armedDel === it.id ? "Confirmar borrado definitivo" : "Eliminar (pide confirmación)"}
                     className="output-cell-btn output-cell-btn-danger"
-                    onClick={() => onItemAction?.("delete", node.id, it)}
-                  ><Icon.Trash style={{ width: 13, height: 13 }} /></button>
+                    onClick={() => askCellDelete(it)}
+                    style={armedDel === it.id ? { background: "#EF4444", color: "#fff", width: "auto", padding: "0 8px", fontSize: 10, fontWeight: 700, boxShadow: "0 0 10px rgba(239,68,68,0.6)" } : undefined}
+                  >{armedDel === it.id ? "¿Borrar?" : <Icon.Trash style={{ width: 13, height: 13 }} />}</button>
                 </div>
                 <div className="output-cell-index mono">{String(i + 1).padStart(2, "0")}</div>
               </div>
               );
             })}
+            {Array.from({ length: pending }).map((_, pi) => (
+              <div key={"ph-" + pi} className="output-cell" style={{ position: "relative", minHeight: 120, borderRadius: 10, overflow: "hidden", background: "#0c0c14" }}>
+                <ShaderLoader className="shader-loader-bg" style={{ position: "absolute", inset: 0 }} />
+                <div className="output-cell-index mono" style={{ zIndex: 2 }}>{String(items.length + pi + 1).padStart(2, "0")}</div>
+                <div className="shader-loader-status mono" style={{ position: "absolute", left: 0, right: 0, bottom: 6, textAlign: "center", fontSize: 9, zIndex: 2 }}>
+                  {kind === "video" ? "renderizando…" : "generando…"}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -1953,5 +1970,6 @@ Object.assign(window, {
   ImageRefNode,
   OutputNode,
   StatusDot,
+  ShaderLoader,
   AgentPicker,
 });
