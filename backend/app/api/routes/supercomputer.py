@@ -6,6 +6,7 @@ POST /stream — Server-Sent Events con un evento por nodo (producción)
 from __future__ import annotations
 
 import json
+import logging
 import httpx
 from typing import Any, AsyncGenerator
 
@@ -23,6 +24,7 @@ from app.tools.kid_ai_tool import call_kid_ai_api
 
 
 router = APIRouter(prefix="/chat", tags=["supercomputer"])
+logger = logging.getLogger(__name__)
 _graph = build_graph()
 
 
@@ -269,6 +271,8 @@ class RenderStyle(BaseModel):
     letterbox: bool | None = None         # barras cinemascope (default True)
     sfx: bool | None = None               # efectos de sonido en transiciones (default True)
     branding: bool | None = None          # intro/outro de marca (default False — solo contenido del usuario)
+    autosubs: bool | None = None          # subtítulos automáticos: transcribe la voz de los vídeos (faster-whisper)
+    language: str | None = None           # idioma para la transcripción (None = autodetectar)
 
 
 class RenderRequest(BaseModel):
@@ -316,6 +320,47 @@ async def render_video(req: RenderRequest) -> RenderResponse:
     ]
     if not scenes:
         raise HTTPException(status_code=400, detail="scenes vacío: se requiere al menos 1 escena con url")
+
+    # ── Subtítulos automáticos: transcribir la voz de cada escena de VÍDEO ──
+    # Reutiliza el pipeline STT local de /video/transcribe (faster-whisper).
+    # Los segments [{start,end,text}] van a Remotion, que los pinta sincronizados.
+    # Si un vídeo no tiene voz → segments vacío y cae al caption manual si lo hay.
+    if req.style and req.style.autosubs:
+        import asyncio as _asyncio
+        import os as _os
+        import shutil as _shutil
+        import tempfile as _tempfile
+
+        from app.api.routes.video import _download, _run_ffmpeg, _transcribe_file
+
+        async def _segments_for(url: str) -> list[dict[str, Any]]:
+            tmp = _tempfile.mkdtemp(prefix="cdpro-movie-stt-")
+            vid_p = _os.path.join(tmp, "in.mp4")
+            wav_p = _os.path.join(tmp, "a.wav")
+            try:
+                await _download(url, vid_p)
+                await _asyncio.to_thread(
+                    _run_ffmpeg, ["ffmpeg", "-y", "-i", vid_p, "-vn", "-ac", "1", "-ar", "16000", wav_p], 300
+                )
+                res = await _asyncio.to_thread(_transcribe_file, wav_p, (req.style.language or None))
+                return [
+                    {"start": float(s["start"]), "end": float(s["end"]), "text": str(s["text"]).strip()}
+                    for s in res.get("segments", [])
+                    if str(s.get("text", "")).strip()
+                ]
+            except Exception as e:  # noqa: BLE001 — sin voz o fallo STT: la película sigue sin subs en esa escena
+                logger.warning("movie.autosubs %s: %s", url[:80], e)
+                return []
+            finally:
+                _shutil.rmtree(tmp, ignore_errors=True)
+
+        for sc in scenes:
+            u = str(sc["url"]).split("?")[0].lower()
+            is_video = (sc.get("kind") or "").lower() == "video" or u.endswith((".mp4", ".mov", ".webm", ".m4v"))
+            if is_video:
+                segs = await _segments_for(sc["url"])
+                if segs:
+                    sc["segments"] = segs
 
     payload: dict[str, Any] = {
         "scenes": scenes,

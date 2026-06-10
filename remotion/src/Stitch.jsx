@@ -384,12 +384,8 @@ function enterStyle(type, frame, td) {
 // Caption editorial — receta omgadrian: peso light, tracking amplio,
 // fade-in puro 14 frames, entra ~0.8s tras el inicio del clip, lower third.
 // ──────────────────────────────────────────────────────────────────────────
-function CinematicCaption({ text, accent, frame, fps, letterbox, sceneDur }) {
-  if (!text) return null;
-  // Entra pronto (0.3s) y rápido (10f) — en escenas cortas, desde el frame 0.
-  const inStart = Math.min(Math.round(fps * 0.3), Math.max(0, Math.round((sceneDur || fps * 3) * 0.15)));
-  const opacity = interpolate(frame, [inStart, inStart + 10], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const rise = interpolate(frame, [inStart, inStart + 14], [16, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+// Píldora de subtítulo — estilo cine compartido por captions manuales y automáticos.
+function CaptionPill({ text, accent, opacity, rise, letterbox }) {
   return (
     <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", padding: `0 54px ${letterbox ? 210 : 170}px`, zIndex: 45 }}>
       <div style={{ opacity, transform: `translateY(${rise}px)`, textAlign: "center", maxWidth: "100%" }}>
@@ -411,6 +407,27 @@ function CinematicCaption({ text, accent, frame, fps, letterbox, sceneDur }) {
       </div>
     </AbsoluteFill>
   );
+}
+
+function CinematicCaption({ text, accent, frame, fps, letterbox, sceneDur }) {
+  if (!text) return null;
+  // Entra pronto (0.3s) y rápido (10f) — en escenas cortas, desde el frame 0.
+  const inStart = Math.min(Math.round(fps * 0.3), Math.max(0, Math.round((sceneDur || fps * 3) * 0.15)));
+  const opacity = interpolate(frame, [inStart, inStart + 10], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const rise = interpolate(frame, [inStart, inStart + 14], [16, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  return <CaptionPill text={text} accent={accent} opacity={opacity} rise={rise} letterbox={letterbox} />;
+}
+
+// Subtítulos AUTOMÁTICOS — segments [{start,end,text}] de la transcripción
+// Whisper del propio vídeo. Cada frase aparece sincronizada con la voz.
+function TimedCaptions({ segments, accent, frame, fps, letterbox }) {
+  const t = frame / fps;
+  const seg = segments.find((s) => t >= s.start && t < s.end + 0.08);
+  if (!seg || !seg.text) return null;
+  const local = frame - Math.round(seg.start * fps);
+  const opacity = interpolate(local, [0, 5], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const rise = interpolate(local, [0, 7], [10, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  return <CaptionPill text={seg.text} accent={accent} opacity={opacity} rise={rise} letterbox={letterbox} />;
 }
 
 function isVideoScene(scene) {
@@ -446,7 +463,11 @@ function SceneClip({ scene, index, accent, transition, td, look, style }) {
         </AbsoluteFill>
         <SplitTone look={look} />
         <Vignette amount={style.vignette * (look.vignetteBoost || 1)} lift={look.liftBlacks} />
-        <CinematicCaption text={scene.caption} accent={accent} frame={frame} fps={fps} letterbox={style.letterbox} sceneDur={durationInFrames} />
+        {Array.isArray(scene.segments) && scene.segments.length ? (
+          <TimedCaptions segments={scene.segments} accent={accent} frame={frame} fps={fps} letterbox={style.letterbox} />
+        ) : (
+          <CinematicCaption text={scene.caption} accent={accent} frame={frame} fps={fps} letterbox={style.letterbox} sceneDur={durationInFrames} />
+        )}
       </AbsoluteFill>
       {/* Flash de film burn — encima de todo el clip */}
       {flash > 0 ? (

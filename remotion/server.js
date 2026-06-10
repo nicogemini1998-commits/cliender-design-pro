@@ -81,6 +81,7 @@ app.post("/render", async (req, res) => {
         transition: s.transition ? String(s.transition) : undefined,
         transitionDurationInFrames: Number(s.transitionDurationInFrames) > 0 ? Number(s.transitionDurationInFrames) : undefined,
         kenburns: s.kenburns ? String(s.kenburns) : undefined,
+        segments: Array.isArray(s.segments) && s.segments.length ? s.segments : undefined,
       })),
       brand: body.brand || {},
       style: body.style || {},

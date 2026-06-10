@@ -431,6 +431,7 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
   const [editorOpen, setEditorOpen] = React.useState(false);
   const [subs, setSubs] = React.useState(false);          // subtítulos SOLO si el usuario los pide
   const [sfx, setSfx] = React.useState(true);             // diseño de sonido cinematográfico
+  const [origAudio, setOrigAudio] = React.useState(true); // audio original de los vídeos (voz incluida)
   const [branding, setBranding] = React.useState(false);  // intro/outro de marca (off = solo tu contenido)
   // Texto de subtítulo POR ESCENA (editable en el editor) — keyed por id de asset.
   // Se prefillea con el prompt del asset al abrir el editor; el usuario lo edita.
@@ -491,6 +492,7 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
       .map((it) => ({
         url: it.url,
         kind: it.kind === "video" ? "video" : "image",
+        muted: it.kind === "video" ? !origAudio : true,
         duration_s: parseFloat(String(it.duration || "")) || (it.kind === "video" ? 5 : 2.5),
         caption: subs ? String(sceneTexts[it.id] != null ? sceneTexts[it.id] : (it.prompt || "")).trim().slice(0, 120) : "",
         transition,
@@ -500,7 +502,7 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
     try {
       const r = await fetch(`${API}/chat/render`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenes, brand: { name: "Cliender", accent: "#7C3AED" }, style: { look, letterbox, grain: grain ? 0.18 : 0, sfx, branding }, fps: 24, width: 1080, height: 1920 }),
+        body: JSON.stringify({ scenes, brand: { name: "Cliender", accent: "#7C3AED" }, style: { look, letterbox, grain: grain ? 0.18 : 0, sfx, branding, autosubs: subs }, fps: 24, width: 1080, height: 1920 }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.detail || data.error || `HTTP ${r.status}`);
@@ -737,7 +739,8 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
                         { k: "sfx", v: sfx, set: setSfx, t: "Sonido cinematográfico", d: "Whooshes e impactos sincronizados con cada transición (J-cut)" },
                         { k: "letterbox", v: letterbox, set: setLetterbox, t: "Letterbox cine", d: "Barras panorámicas estilo película" },
                         { k: "grain", v: grain, set: setGrain, t: "Grano 16mm", d: "Textura de película analógica" },
-                        { k: "subs", v: subs, set: setSubs, t: "Subtítulos", d: "Rótulo editorial con el texto de cada escena (solo si lo quieres)" },
+                        { k: "subs", v: subs, set: setSubs, t: "Subtítulos automáticos", d: "La voz de tus vídeos se transcribe sola (Whisper) y aparece sincronizada estilo cine" },
+                        { k: "origAudio", v: origAudio, set: setOrigAudio, t: "Audio original", d: "Mantener la voz y el sonido de tus vídeos en la película" },
                         { k: "branding", v: branding, set: setBranding, t: "Intro/Outro de marca", d: "Cabecera y cierre Cliender. Apagado = SOLO tu contenido" },
                       ].map((o) => (
                         <label key={o.k} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "9px 11px", borderRadius: 10, cursor: "pointer", background: o.v ? "rgba(124,58,237,0.10)" : "rgba(255,255,255,0.025)", border: o.v ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.07)" }}>
@@ -753,7 +756,7 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
 
                   {subs && (
                     <div>
-                      <div className="mono" style={LBL}>Texto de los subtítulos — edítalo a tu gusto</div>
+                      <div className="mono" style={LBL}>Subtítulos por escena — vídeos: automáticos por voz · este texto es el respaldo</div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         {selItems.map((it, idx) => (
                           <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -769,7 +772,7 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
                           </div>
                         ))}
                       </div>
-                      <div style={DSC}>El subtítulo aparece en grande sobre la escena, estilo cine. Escena con campo vacío = sin subtítulo.</div>
+                      <div style={DSC}>En vídeos la voz se transcribe sola; este texto solo se usa si la escena no tiene voz (o es imagen). Campo vacío = sin subtítulo.</div>
                     </div>
                   )}
 
