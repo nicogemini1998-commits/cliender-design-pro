@@ -193,6 +193,13 @@ class AgentContext(BaseModel):
     description: Optional[str] = None
     tono: Optional[str] = None
     objetivo: Optional[str] = None
+    style: Optional[list[str]] = None        # estilo visual firma del agente
+    avoid: Optional[list[str]] = None         # anti-patrones duros del agente
+    audience: Optional[str] = None             # audiencia objetivo
+    platform: Optional[str] = None             # plataforma principal (IG/TikTok/…)
+    cta: Optional[str] = None                  # tipo de CTA preferido
+    sector: Optional[str] = None               # sector/industria
+    instructions: Optional[str] = None         # instrucciones maestras del usuario
 
 
 class AgentRunRequest(BaseModel):
@@ -248,6 +255,14 @@ def _build_system(req: AgentRunRequest) -> str:  # noqa: PLR0912,PLR0915
         agent_role=a.role,
         agent_specialty=a.specialty,
         agent_tone=a.tono,
+        agent_objective=a.objetivo,
+        agent_description=a.description,
+        agent_style=a.style,
+        agent_avoid=a.avoid,
+        agent_audience=a.audience,
+        agent_platform=a.platform,
+        agent_cta=a.cta,
+        agent_instructions=a.instructions,
     )
 
 

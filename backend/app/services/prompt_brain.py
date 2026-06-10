@@ -701,6 +701,14 @@ def build_creative_system(
     agent_role: Optional[str] = None,
     agent_specialty: Optional[str] = None,
     agent_tone: Optional[str] = None,
+    agent_objective: Optional[str] = None,
+    agent_description: Optional[str] = None,
+    agent_style: Optional[list] = None,
+    agent_avoid: Optional[list] = None,
+    agent_audience: Optional[str] = None,
+    agent_platform: Optional[str] = None,
+    agent_cta: Optional[str] = None,
+    agent_instructions: Optional[str] = None,
 ) -> str:
     """Construye el system prompt completo de SHAQ (cerebro unificado).
 
@@ -736,6 +744,30 @@ def build_creative_system(
         output_type=output_type,
     ))
     lines.append("</role_and_knowledge>")
+
+    # ── Persona del agente creativo del usuario ──
+    # Todo lo que el usuario definió al crear su agente moldea el prompt final.
+    persona: list[str] = []
+    if agent_description:
+        persona.append(f"Identity: {agent_description}")
+    if agent_objective:
+        persona.append(f"Primary objective every output must serve: {agent_objective}")
+    if agent_audience:
+        persona.append(f"Target audience to speak to: {agent_audience}")
+    if agent_platform:
+        persona.append(f"Primary platform — respect its specs, formats and trends: {agent_platform}")
+    if agent_cta:
+        persona.append(f"Preferred call-to-action flavor: {agent_cta}")
+    if agent_style:
+        persona.append("Signature visual style of this agent: " + ", ".join(str(s) for s in agent_style if s) + ".")
+    if agent_avoid:
+        persona.append("HARD anti-patterns of this agent — NEVER produce: " + ", ".join(str(s) for s in agent_avoid if s) + ".")
+    if agent_instructions:
+        persona.append("MASTER INSTRUCTIONS written by the user for this agent (highest styling priority after client brand rules): " + str(agent_instructions).strip())
+    if persona:
+        lines.append("<agent_persona>")
+        lines.extend(persona)
+        lines.append("</agent_persona>")
 
     if c:
         lines.append("<client_context>")

@@ -2812,7 +2812,7 @@ const SAMPLE_AGENTS = [
 // ---------------------------------------------------------------------------
 // AgentFicha — tarjeta expandible con info completa
 // ---------------------------------------------------------------------------
-function AgentFicha({ agent, onEdit, onDelete }) {
+function AgentFicha({ agent, onEdit, onDelete, onDuplicate }) {
   const [expanded, setExpanded] = React.useState(false);
   const color = agent.accent || "#6366F1";
 
@@ -2831,6 +2831,7 @@ function AgentFicha({ agent, onEdit, onDelete }) {
         </div>
         <div className="agent-card-actions" onClick={(e) => e.stopPropagation()}>
           <button className="agent-card-btn" onClick={() => onEdit(agent)} title="Editar">&#9998;</button>
+          {onDuplicate && <button className="agent-card-btn" onClick={() => onDuplicate(agent)} title="Duplicar agente">⧉</button>}
           <button className="agent-card-btn agent-card-btn-del" onClick={() => onDelete(agent.id)} title="Eliminar">&#10005;</button>
         </div>
         <span className="agent-card-chevron mono">{expanded ? "▲" : "▼"}</span>
@@ -2862,6 +2863,30 @@ function AgentFicha({ agent, onEdit, onDelete }) {
             <div className="ficha-row">
               <span className="ficha-label mono">sector</span>
               <span className="ficha-val">{agent.sector}</span>
+            </div>
+          )}
+          {agent.audience && (
+            <div className="ficha-row">
+              <span className="ficha-label mono">audiencia</span>
+              <span className="ficha-val">{agent.audience}</span>
+            </div>
+          )}
+          {agent.platform && (
+            <div className="ficha-row">
+              <span className="ficha-label mono">plataforma</span>
+              <span className="ficha-val">{agent.platform}</span>
+            </div>
+          )}
+          {agent.cta && (
+            <div className="ficha-row">
+              <span className="ficha-label mono">cta</span>
+              <span className="ficha-val">{agent.cta}</span>
+            </div>
+          )}
+          {agent.instructions && (
+            <div className="ficha-row">
+              <span className="ficha-label mono">instrucciones</span>
+              <span className="ficha-val" style={{ whiteSpace: "pre-wrap" }}>{agent.instructions}</span>
             </div>
           )}
           {agent.style?.length > 0 && (
@@ -2912,7 +2937,7 @@ function AgentsPanel({ agents, onAdd, onEdit, onDelete, onClose }) {
 
   return (
     <>
-      <DrawerHeader title="Agentes Creativos" subtitle="personaliza tu equipo IA" onClose={onClose} />
+      <DrawerHeader title="Agentes Creativos" subtitle="refinan cada brief antes de generar · se eligen en el Prompt Node" onClose={onClose} />
       <div className="drawer-body scroll-thin">
 
         <div className="agents-actions-row">
@@ -2928,13 +2953,20 @@ function AgentsPanel({ agents, onAdd, onEdit, onDelete, onClose }) {
 
         {agents.length === 0 && (
           <div className="agent-panel-empty mono">
-            Aún no tienes agentes. Crea el primero para personalizar
-            cómo la supercomputadora interpreta cada brief.
+            Aún no tienes agentes. Un agente es un director creativo IA con su
+            propia personalidad: reescribe tus briefs en prompts profesionales.
+            Crea el primero o usa una plantilla de rol.
           </div>
         )}
 
         {agents.map((a) => (
-          <AgentFicha key={a.id} agent={a} onEdit={openEdit} onDelete={onDelete} />
+          <AgentFicha key={a.id} agent={a} onEdit={openEdit}
+            onDuplicate={(ag) => onAdd({ ...ag, id: "ag-" + Date.now().toString(36), name: ag.name + " copia" })}
+            onDelete={(id) => {
+              const doIt = () => onDelete(id);
+              if (window.__confirm) window.__confirm(`¿Eliminar el agente "${a.name}"?`, { danger: true, confirmText: "Eliminar" }).then((ok) => { if (ok) doIt(); });
+              else if (window.confirm("¿Eliminar este agente?")) doIt();
+            }} />
         ))}
       </div>
 
@@ -3111,11 +3143,65 @@ const _AGENT_OBJS = [
   { id:"education",  icon:"📖", label:"Educación",   desc:"Informar y formar" },
 ];
 const _AGENT_COLORS = ["#8B5CF6","#6366F1","#EC4899","#10B981","#F59E0B","#EF4444","#06B6D4","#F97316"];
+const _AGENT_AUDIENCES = [
+  { id:"genz",        label:"Gen Z (16-24)" },
+  { id:"millennials", label:"Millennials (25-35)" },
+  { id:"pro35",       label:"Profesionales 35+" },
+  { id:"b2b",         label:"B2B / Empresas" },
+  { id:"masivo",      label:"Masivo / general" },
+];
+const _AGENT_PLATFORMS = [
+  { id:"instagram", label:"Instagram" },
+  { id:"tiktok",    label:"TikTok" },
+  { id:"linkedin",  label:"LinkedIn" },
+  { id:"youtube",   label:"YouTube" },
+  { id:"web",       label:"Web / Blog" },
+  { id:"ads",       label:"Paid / Ads" },
+];
+const _AGENT_CTAS = [
+  { id:"compra",   label:"Compra ahora" },
+  { id:"reserva",  label:"Reserva tu cita" },
+  { id:"descarga", label:"Descarga gratis" },
+  { id:"sigue",    label:"Síguenos" },
+  { id:"descubre", label:"Descúbrelo" },
+];
+const _AGENT_AVOID = [
+  { id:"stock",     label:"Stock genérico" },
+  { id:"corporate", label:"Jerga corporativa" },
+  { id:"neon",      label:"Colores neón" },
+  { id:"posed",     label:"Poses forzadas" },
+  { id:"denso",     label:"Información densa" },
+  { id:"lowfi",     label:"Baja calidad" },
+];
+// Plantillas de rol — prefill profesional del formulario (NO crean agentes solas;
+// el usuario las ajusta y guarda). Cada patch usa los ids de los catálogos de arriba.
+const AGENT_TEMPLATES = [
+  { id:"art", icon:"🎨", label:"Director de Arte", desc:"Dirección visual editorial, composición y paleta impecables",
+    patch:{ role:"Director de Arte", tono:"lux", vstyle:["editorial","minimal"], objetivo:"branding", avoidSel:["stock","neon"], accent:"#8B5CF6",
+      description:"Director de arte senior: jerarquía visual, composición editorial y coherencia cromática absoluta en cada pieza.",
+      instructions:"Composición con jerarquía clara y espacio negativo generoso. Tipografía como elemento de diseño. Nunca más de 2 focos de atención por pieza." } },
+  { id:"cine", icon:"🎬", label:"Cinematógrafo", desc:"Luz, óptica y movimiento de cámara de cine",
+    patch:{ role:"Cinematógrafo", tono:"bold", vstyle:["dark_cin","raw"], objetivo:"branding", avoidSel:["posed","lowfi"], accent:"#06B6D4",
+      description:"Director de fotografía: piensa en luz motivada, óptica real (24/35/85mm) y movimiento de cámara con intención narrativa.",
+      instructions:"Especifica siempre lente, altura de cámara y calidad de luz. Luz motivada (ventana, neón, atardecer), nunca plana. Movimiento solo si cuenta algo." } },
+  { id:"copy", icon:"✍️", label:"Copy Performance", desc:"Hooks de 3s y CTAs que convierten",
+    patch:{ role:"Copywriter de Performance", tono:"bold", vstyle:["colorful"], objetivo:"conversion", avoidSel:["corporate","denso"], accent:"#F59E0B",
+      description:"Copywriter de respuesta directa: gancho en los primeros 3 segundos, beneficio concreto y un solo CTA claro.",
+      instructions:"Cada pieza abre con un hook visual+textual en 3s. Un solo mensaje por pieza. CTA explícito al final. Lenguaje de beneficio, nunca de característica." } },
+  { id:"guardian", icon:"🛡️", label:"Brand Guardian", desc:"Coherencia de marca absoluta con la ficha del cliente",
+    patch:{ role:"Brand Guardian", tono:"close", vstyle:["editorial"], objetivo:"branding", avoidSel:["neon","lowfi","stock"], accent:"#10B981",
+      description:"Guardián de la identidad: cada salida respeta al 100% la paleta, tipografía, tono y anti-patrones de la ficha del cliente activo.",
+      instructions:"La CAPA 1 (identidad del cliente) es inviolable: jamás salirse de su paleta ni de su tono. Si el brief contradice la marca, corrige el brief." } },
+  { id:"social", icon:"📱", label:"Social Strategist", desc:"Formatos nativos y tendencias por plataforma",
+    patch:{ role:"Social Media Strategist", tono:"close", vstyle:["raw","colorful"], objetivo:"engagement", avoidSel:["stock","corporate"], audience:"millennials", platform:"instagram", cta:"sigue", accent:"#EC4899",
+      description:"Estratega social: contenido nativo por plataforma, diseñado para visualización silenciada y scroll-stop en el primer frame.",
+      instructions:"Formato nativo de la plataforma (9:16 vertical primero). Diseñado para verse SIN sonido. El primer frame debe parar el scroll por sí solo." } },
+];
 
 function NewAgentPopup({ open, initial, onSave, onClose }) {
   if (!open) return null;
   const ACCENTS = _AGENT_COLORS;
-  const blank = { name:"", role:"", description:"", accent:"#8B5CF6", initials:"", sector:"", tono:"", vstyle:[], objetivo:"", agentPhoto:"" };
+  const blank = { name:"", role:"", description:"", accent:"#8B5CF6", initials:"", sector:"", tono:"", vstyle:[], objetivo:"", agentPhoto:"", audience:"", platform:"", cta:"", avoidSel:[], instructions:"" };
   const [form, setForm] = React.useState(() => {
     if (!initial) return blank;
     return { name:initial.name||"", role:initial.role||"", description:initial.description||"",
@@ -3124,7 +3210,12 @@ function NewAgentPopup({ open, initial, onSave, onClose }) {
              sector:_AGENT_SECTORS.find(s=>(initial.sector||"").toLowerCase().includes(s.label.split("/")[0].trim().toLowerCase()))?.id||"",
              tono:_AGENT_TONOS.find(t=>(initial.tono||"").toLowerCase().includes(t.label.toLowerCase()))?.id||"",
              vstyle:(initial.style||[]).map(s=>_AGENT_VSTYLES.find(x=>s.toLowerCase().includes(x.label.toLowerCase()))?.id||"").filter(Boolean),
-             objetivo:_AGENT_OBJS.find(o=>(initial.objetivo||"").toLowerCase().includes(o.label.toLowerCase()))?.id||"" };
+             objetivo:_AGENT_OBJS.find(o=>(initial.objetivo||"").toLowerCase().includes(o.label.toLowerCase()))?.id||"",
+             audience:_AGENT_AUDIENCES.find(x=>x.label===(initial.audience||""))?.id||"",
+             platform:_AGENT_PLATFORMS.find(x=>x.label===(initial.platform||""))?.id||"",
+             cta:_AGENT_CTAS.find(x=>x.label===(initial.cta||""))?.id||"",
+             avoidSel:(initial.avoid||[]).map(l=>_AGENT_AVOID.find(x=>x.label===l)?.id).filter(Boolean),
+             instructions:initial.instructions||"" };
   });
 
   const set = (k, v) => setForm(f => ({...f, [k]: v}));
@@ -3143,9 +3234,14 @@ function NewAgentPopup({ open, initial, onSave, onClose }) {
     const tl = _AGENT_TONOS.find(t=>t.id===form.tono)?.label || "";
     const vs = form.vstyle.map(s=>_AGENT_VSTYLES.find(x=>x.id===s)?.label||s);
     const ol = _AGENT_OBJS.find(o=>o.id===form.objetivo)?.label || "";
+    const audL = _AGENT_AUDIENCES.find(x=>x.id===form.audience)?.label || "";
+    const plaL = _AGENT_PLATFORMS.find(x=>x.id===form.platform)?.label || "";
+    const ctaL = _AGENT_CTAS.find(x=>x.id===form.cta)?.label || "";
+    const avL = (form.avoidSel||[]).map(id=>_AGENT_AVOID.find(x=>x.id===id)?.label||id);
     onSave({ id:initial?.id||("ag-"+Date.now().toString(36)), name:form.name.trim(),
       role:form.role.trim()||"Agente Creativo", specialty:"", description:form.description.trim(),
-      tono:tl, objetivo:ol, sector:sl, accent:form.accent, initials:liveInitials, style:vs, avoid:[],
+      tono:tl, objetivo:ol, sector:sl, accent:form.accent, initials:liveInitials, style:vs,
+      avoid:avL, audience:audL, platform:plaL, cta:ctaL, instructions:(form.instructions||"").trim(),
       agentPhoto:form.agentPhoto||"" });
   };
 
@@ -3190,6 +3286,22 @@ function NewAgentPopup({ open, initial, onSave, onClose }) {
         <div className="ai-wiz-question-wrap" style={{paddingBottom:6}}>
 
           {/* Avatar del agente — 6 iconos preset */}
+          {!initial && (<>
+            <SectionLabel>plantillas de rol · prefill profesional</SectionLabel>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:4}}>
+              {AGENT_TEMPLATES.map(t=>(
+                <button key={t.id} type="button" title={t.desc}
+                  onClick={()=>setForm(f=>({ ...f, ...t.patch }))}
+                  style={{display:"flex",alignItems:"center",gap:6,padding:"7px 12px",borderRadius:10,cursor:"pointer",
+                    background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"inherit",fontSize:11.5,transition:"border .15s, background .15s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.border="1px solid rgba(167,139,250,0.55)";e.currentTarget.style.background="rgba(124,58,237,0.10)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.border="1px solid rgba(255,255,255,0.1)";e.currentTarget.style.background="rgba(255,255,255,0.04)";}}>
+                  <span>{t.icon}</span><span>{t.label}</span>
+                </button>
+              ))}
+            </div>
+          </>)}
+
           <SectionLabel>avatar del agente</SectionLabel>
           <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:10,marginBottom:14}}>
             {Array.from({length:6},(_,i)=>{
@@ -3277,13 +3389,64 @@ function NewAgentPopup({ open, initial, onSave, onClose }) {
             ))}
           </div>
 
+          {/* Audiencia / Plataforma / CTA / Evitar — todo esto se inyecta en el system prompt */}
+          <SectionLabel>audiencia objetivo</SectionLabel>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {_AGENT_AUDIENCES.map(o=>(
+              <button key={o.id} type="button" onClick={()=>set("audience",form.audience===o.id?"":o.id)} className="mono"
+                style={{padding:"6px 12px",borderRadius:999,fontSize:11,cursor:"pointer",
+                  background:form.audience===o.id?"rgba(167,139,250,0.18)":"rgba(255,255,255,0.04)",
+                  border:form.audience===o.id?"1px solid rgba(167,139,250,0.6)":"1px solid rgba(255,255,255,0.1)",
+                  color:form.audience===o.id?"#E9D5FF":"inherit"}}>{o.label}</button>
+            ))}
+          </div>
+          <SectionLabel>plataforma principal</SectionLabel>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {_AGENT_PLATFORMS.map(o=>(
+              <button key={o.id} type="button" onClick={()=>set("platform",form.platform===o.id?"":o.id)} className="mono"
+                style={{padding:"6px 12px",borderRadius:999,fontSize:11,cursor:"pointer",
+                  background:form.platform===o.id?"rgba(167,139,250,0.18)":"rgba(255,255,255,0.04)",
+                  border:form.platform===o.id?"1px solid rgba(167,139,250,0.6)":"1px solid rgba(255,255,255,0.1)",
+                  color:form.platform===o.id?"#E9D5FF":"inherit"}}>{o.label}</button>
+            ))}
+          </div>
+          <SectionLabel>cta habitual</SectionLabel>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {_AGENT_CTAS.map(o=>(
+              <button key={o.id} type="button" onClick={()=>set("cta",form.cta===o.id?"":o.id)} className="mono"
+                style={{padding:"6px 12px",borderRadius:999,fontSize:11,cursor:"pointer",
+                  background:form.cta===o.id?"rgba(167,139,250,0.18)":"rgba(255,255,255,0.04)",
+                  border:form.cta===o.id?"1px solid rgba(167,139,250,0.6)":"1px solid rgba(255,255,255,0.1)",
+                  color:form.cta===o.id?"#E9D5FF":"inherit"}}>{o.label}</button>
+            ))}
+          </div>
+          <SectionLabel>evitar siempre <span style={{opacity:.4,fontSize:8,fontFamily:"inherit"}}> · selección múltiple</span></SectionLabel>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {_AGENT_AVOID.map(o=>(
+              <button key={o.id} type="button" className="mono"
+                onClick={()=>set("avoidSel",(form.avoidSel||[]).includes(o.id)?form.avoidSel.filter(x=>x!==o.id):[...(form.avoidSel||[]),o.id])}
+                style={{padding:"6px 12px",borderRadius:999,fontSize:11,cursor:"pointer",
+                  background:(form.avoidSel||[]).includes(o.id)?"rgba(239,68,68,0.14)":"rgba(255,255,255,0.04)",
+                  border:(form.avoidSel||[]).includes(o.id)?"1px solid rgba(239,68,68,0.55)":"1px solid rgba(255,255,255,0.1)",
+                  color:(form.avoidSel||[]).includes(o.id)?"#FCA5A5":"inherit"}}>{o.label}</button>
+            ))}
+          </div>
+
           {/* Descripción (opcional) */}
           <div className="field-label" style={{fontSize:11,marginBottom:5,marginTop:18,opacity:.45}}>
             Descripción adicional <span className="mono">(opcional)</span>
           </div>
           <textarea className="ai-wiz-textarea-input" rows={2} value={form.description}
             onChange={e=>set("description",e.target.value)}
-            placeholder="Personalidad, contexto o instrucciones extra para este agente…"/>
+            placeholder="Personalidad y contexto de este agente…"/>
+
+          {/* Instrucciones maestras — van DIRECTAS al system prompt con prioridad alta */}
+          <div className="field-label" style={{fontSize:11,marginBottom:5,marginTop:14,opacity:.45}}>
+            Instrucciones maestras <span className="mono">(reglas fijas — van directas al cerebro con máxima prioridad)</span>
+          </div>
+          <textarea className="ai-wiz-textarea-input" rows={3} value={form.instructions}
+            onChange={e=>set("instructions",e.target.value)}
+            placeholder="Ej: 'siempre luz natural motivada', 'nunca texto sobre rostros', 'óptica 35mm, cámara a la altura del pecho'…"/>
         </div>
 
         <div className="ai-wiz-nav">

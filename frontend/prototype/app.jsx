@@ -2419,6 +2419,14 @@ function App() {
           description: agentObj.description,
           tono: agentObj.tono,
           objetivo: agentObj.objetivo,
+          // Persona completa — el backend la vuelca en <agent_persona> del system prompt
+          style: agentObj.style || null,
+          avoid: agentObj.avoid || null,
+          audience: agentObj.audience || null,
+          platform: agentObj.platform || null,
+          cta: agentObj.cta || null,
+          sector: agentObj.sector || null,
+          instructions: agentObj.instructions || null,
         };
 
         // Recoge TODAS las URLs upstream (image/video lastUrl + imageref + reference)
