@@ -432,6 +432,9 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
   const [subs, setSubs] = React.useState(false);          // subtítulos SOLO si el usuario los pide
   const [sfx, setSfx] = React.useState(true);             // diseño de sonido cinematográfico
   const [branding, setBranding] = React.useState(false);  // intro/outro de marca (off = solo tu contenido)
+  // Texto de subtítulo POR ESCENA (editable en el editor) — keyed por id de asset.
+  // Se prefillea con el prompt del asset al abrir el editor; el usuario lo edita.
+  const [sceneTexts, setSceneTexts] = React.useState({});
   // Swatches por look para las tarjetas del editor
   const LOOK_SWATCH = {
     cine: ["#0b4a5c", "#ffc7a0", "#1a1a22"],
@@ -489,7 +492,7 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
         url: it.url,
         kind: it.kind === "video" ? "video" : "image",
         duration_s: parseFloat(String(it.duration || "")) || (it.kind === "video" ? 5 : 2.5),
-        caption: subs ? (it.prompt || "").slice(0, 90) : "",
+        caption: subs ? String(sceneTexts[it.id] != null ? sceneTexts[it.id] : (it.prompt || "")).trim().slice(0, 120) : "",
         transition,
       }));
     if (scenes.length === 0) return;
@@ -623,7 +626,20 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
               <button className="gallery-assemble-go"
                 disabled={selected.length === 0 || rendering}
                 style={{ background: "rgba(124,58,237,0.22)", borderColor: "rgba(167,139,250,0.5)", fontWeight: 600 }}
-                onClick={() => setEditorOpen(true)}>
+                onClick={() => {
+                  // Prefill de subtítulos con el prompt de cada asset (editable luego)
+                  setSceneTexts((prev) => {
+                    const next = { ...prev };
+                    selected.forEach((id) => {
+                      if (next[id] == null) {
+                        const it = items.find((i) => i.id === id);
+                        next[id] = ((it && it.prompt) || "").slice(0, 90);
+                      }
+                    });
+                    return next;
+                  });
+                  setEditorOpen(true);
+                }}>
                 {rendering ? "Renderizando…" : `🎬 Montar película (${selected.length})`}
               </button>
             </div>
@@ -734,6 +750,28 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
                       ))}
                     </div>
                   </div>
+
+                  {subs && (
+                    <div>
+                      <div className="mono" style={LBL}>Texto de los subtítulos — edítalo a tu gusto</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {selItems.map((it, idx) => (
+                          <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span className="mono" style={{ width: 18, fontSize: 10.5, opacity: 0.6, textAlign: "right" }}>{idx + 1}</span>
+                            <input
+                              type="text"
+                              value={sceneTexts[it.id] != null ? sceneTexts[it.id] : ""}
+                              maxLength={120}
+                              placeholder="Escribe el subtítulo de esta escena… (vacío = sin subtítulo)"
+                              onChange={(e) => setSceneTexts((p) => ({ ...p, [it.id]: e.target.value }))}
+                              style={{ flex: 1, height: 32, padding: "4px 12px", fontSize: 12.5, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "inherit", outline: "none" }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div style={DSC}>El subtítulo aparece en grande sobre la escena, estilo cine. Escena con campo vacío = sin subtítulo.</div>
+                    </div>
+                  )}
 
                   <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center", borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: 16 }}>
                     {rendering && <span className="mono" style={{ fontSize: 11, opacity: 0.7, marginRight: "auto" }}>⏳ Renderizando película… 1-2 min</span>}

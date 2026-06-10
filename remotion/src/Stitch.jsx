@@ -384,25 +384,30 @@ function enterStyle(type, frame, td) {
 // Caption editorial — receta omgadrian: peso light, tracking amplio,
 // fade-in puro 14 frames, entra ~0.8s tras el inicio del clip, lower third.
 // ──────────────────────────────────────────────────────────────────────────
-function CinematicCaption({ text, accent, frame, fps, letterbox }) {
+function CinematicCaption({ text, accent, frame, fps, letterbox, sceneDur }) {
   if (!text) return null;
-  const inStart = Math.round(fps * 0.8);
-  const opacity = interpolate(frame, [inStart, inStart + 14], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const rise = interpolate(frame, [inStart, inStart + 18], [14, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  // Entra pronto (0.3s) y rápido (10f) — en escenas cortas, desde el frame 0.
+  const inStart = Math.min(Math.round(fps * 0.3), Math.max(0, Math.round((sceneDur || fps * 3) * 0.15)));
+  const opacity = interpolate(frame, [inStart, inStart + 10], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const rise = interpolate(frame, [inStart, inStart + 14], [16, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   return (
-    <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "flex-start", padding: `0 64px ${letterbox ? 270 : 150}px 64px`, zIndex: 40 }}>
-      <div style={{ opacity, transform: `translateY(${rise}px)` }}>
-        <div style={{ width: 44, height: 2, background: accent, marginBottom: 14, boxShadow: `0 0 12px ${accent}99` }} />
-        <div style={{
+    <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", padding: `0 54px ${letterbox ? 210 : 170}px`, zIndex: 45 }}>
+      <div style={{ opacity, transform: `translateY(${rise}px)`, textAlign: "center", maxWidth: "100%" }}>
+        <span style={{
+          display: "inline-block",
           fontFamily: "Geist, 'Helvetica Neue', system-ui, sans-serif",
-          color: "#F5F0E8",
-          fontSize: 34,
-          fontWeight: 300,
-          letterSpacing: "0.04em",
-          lineHeight: 1.3,
-          maxWidth: "78%",
-          textShadow: "0 2px 24px rgba(0,0,0,0.65)",
-        }}>{text}</div>
+          color: "#FFFFFF",
+          fontSize: 50,
+          fontWeight: 600,
+          lineHeight: 1.28,
+          letterSpacing: "0.01em",
+          padding: "10px 24px 12px",
+          borderRadius: 14,
+          background: "rgba(6,6,10,0.45)",
+          borderBottom: `3px solid ${accent}`,
+          textShadow: "0 2px 18px rgba(0,0,0,0.85), 0 0 3px rgba(0,0,0,0.9)",
+          maxWidth: "100%",
+        }}>{text}</span>
       </div>
     </AbsoluteFill>
   );
@@ -441,7 +446,7 @@ function SceneClip({ scene, index, accent, transition, td, look, style }) {
         </AbsoluteFill>
         <SplitTone look={look} />
         <Vignette amount={style.vignette * (look.vignetteBoost || 1)} lift={look.liftBlacks} />
-        <CinematicCaption text={scene.caption} accent={accent} frame={frame} fps={fps} letterbox={style.letterbox} />
+        <CinematicCaption text={scene.caption} accent={accent} frame={frame} fps={fps} letterbox={style.letterbox} sceneDur={durationInFrames} />
       </AbsoluteFill>
       {/* Flash de film burn — encima de todo el clip */}
       {flash > 0 ? (
