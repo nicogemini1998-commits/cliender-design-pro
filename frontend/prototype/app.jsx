@@ -1353,7 +1353,13 @@ function App() {
   }, [_galleryApi]);
 
   // Clients
-  const [clients, setClients] = useState(() => window.SAMPLE_CLIENTS || []);
+  // Lista negra de clientes FAKE purgados (2026-06-11): ids de demos del template
+  // y duplicados que NO son clientes reales de Cliender. Cualquier navegador con
+  // la lista vieja en memoria los re-subiría vía poll — este filtro los mata para
+  // siempre en lectura, merge y escritura.
+  const PURGED_CLIENT_IDS = React.useMemo(() => new Set(["cl-acme", "cl-verdant", "cl-meridian", "cl-mia", "cl-afj"]), []);
+  const cleanClients = React.useCallback((arr) => (arr || []).filter((c) => c && c.id && !PURGED_CLIENT_IDS.has(c.id)), [PURGED_CLIENT_IDS]);
+  const [clients, setClients] = useState(() => (window.SAMPLE_CLIENTS || []).filter((c) => c && !(["cl-acme", "cl-verdant", "cl-meridian", "cl-mia", "cl-afj"].includes(c.id))));
   const [activeClientId, setActiveClientId] = useState(() => { try { return localStorage.getItem('cdp-ctx-client') || null; } catch { return null; } });
   const [activeMoodboardId, setActiveMoodboardId] = useState(() => { try { return localStorage.getItem('cdp-ctx-mb') || null; } catch { return null; } });
   // activeClient y activeMoodboard se derivan abajo, después de moodboards (useReducer)
@@ -1486,7 +1492,7 @@ function App() {
     window.__store.poll("agents", apply(setAgents));
     window.__store.poll("projects", apply(setProjects));
     window.__store.poll("flow-templates", apply(setFlowTemplates));
-    window.__store.poll("clients", apply(setClients));
+    window.__store.poll("clients", (remote) => apply(setClients)(cleanClients(remote)));
     return () => {
       window.__store.stopPoll("agents");
       window.__store.stopPoll("projects");
@@ -1655,7 +1661,7 @@ function App() {
     return () => window.__moodboards.stopPoll();
   }, []);
   // Guardar clients compartidos al cambiar (antes no se persistían ni en localStorage).
-  useEffect(() => { window.__store?.put("clients", clients); }, [clients]);
+  useEffect(() => { window.__store?.put("clients", cleanClients(clients)); }, [clients, cleanClients]);
   // Contexto activo — derivado aquí donde ya existen clients y moodboards
   const activeClient = clients.find((c) => c.id === activeClientId) || null;
   const activeMoodboard = (moodboards || []).find((m) => m.id === activeMoodboardId) || null;
