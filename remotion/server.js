@@ -1,6 +1,6 @@
-// Cliender Design Pro — Remotion video assembly service
+// Cliender DesignPro — servicio de ensamblaje de video con Remotion
 // POST /render { scenes:[{url,durationInFrames,caption,muted}], brand:{name,logoUrl,accent}, fps, width, height }
-//   -> renders mp4, uploads to Supabase storage (renders/), returns { url, durationInFrames, fps }
+//   → renderiza mp4, lo sube a Supabase brand-assets/renders/, devuelve { url, durationInFrames, fps }
 // GET /health → { status:"ok", bundled:bool }
 const express = require("express");
 const path = require("path");
@@ -31,7 +31,7 @@ function getBundle() {
 
 async function uploadToSupabase(localPath, name) {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
-    return null; // Supabase not configured -> return null, caller serves the local file
+    return null; // sin Supabase configurado → devolver null, el caller sirve archivo local
   }
   const data = fs.readFileSync(localPath);
   const dest = `${SUPABASE_URL}/storage/v1/object/brand-assets/renders/${name}`;
@@ -56,7 +56,7 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok", bundled: !!_bundlePromise });
 });
 
-// serve local files as a fallback when Supabase is not configured
+// servir archivos locales como fallback si no hay Supabase
 const OUT_DIR = path.join(os.tmpdir(), "cdpro-renders");
 fs.mkdirSync(OUT_DIR, { recursive: true });
 app.use("/files", express.static(OUT_DIR));
@@ -67,7 +67,7 @@ app.post("/render", async (req, res) => {
     const body = req.body || {};
     const scenes = Array.isArray(body.scenes) ? body.scenes.filter((s) => s && s.url) : [];
     if (scenes.length === 0) {
-      return res.status(400).json({ error: "empty scenes: at least 1 scene with a url is required" });
+      return res.status(400).json({ error: "scenes vacío: se requiere al menos 1 escena con url" });
     }
     const fps = Number(body.fps) || 30;
     const inputProps = {
@@ -77,8 +77,12 @@ app.post("/render", async (req, res) => {
         durationInFrames: Number(s.durationInFrames) || fps * 5,
         caption: s.caption ? String(s.caption) : "",
         muted: s.muted !== false,
+        transition: s.transition ? String(s.transition) : undefined,
+        transitionDurationInFrames: Number(s.transitionDurationInFrames) > 0 ? Number(s.transitionDurationInFrames) : undefined,
+        kenburns: s.kenburns ? String(s.kenburns) : undefined,
       })),
       brand: body.brand || {},
+      style: body.style || {},
       fps,
       width: Number(body.width) || 1080,
       height: Number(body.height) || 1920,
@@ -134,6 +138,6 @@ app.post("/render", async (req, res) => {
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`[cdpro-remotion] listening on :${PORT}`);
-  // pre-bundle in the background to speed up the first render
+  // pre-bundle en background para acelerar el primer render
   getBundle().then(() => console.log("[cdpro-remotion] bundle ready")).catch((e) => console.warn("bundle warm failed", e.message));
 });

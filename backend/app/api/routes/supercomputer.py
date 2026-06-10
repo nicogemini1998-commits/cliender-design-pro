@@ -252,6 +252,7 @@ class RenderScene(BaseModel):
     muted: bool = True                    # silenciar audio de la escena
     transition: str | None = None         # transición de ENTRADA: dissolve|fade|slide|slideup|zoom|whip|wipe|glitch|cut
     transition_duration_s: float | None = None  # duración del solape de la transición (override opcional)
+    kenburns: str | None = None           # movimiento de cámara en imágenes: zoomin|zoomout|panleft|panright|diagonal
 
 
 class RenderBrand(BaseModel):
@@ -260,9 +261,18 @@ class RenderBrand(BaseModel):
     accent: str | None = None            # color de acento (hex) para captions/marca
 
 
+class RenderStyle(BaseModel):
+    """Estilo cinematográfico global del montaje (Cinematic Engine v2)."""
+    look: str | None = None               # cine|golden|noir|vintage|clean|none
+    grain: float | None = None            # intensidad film grain 0..1 (default 0.18)
+    vignette: float | None = None         # intensidad vignette 0..1 (default 0.32)
+    letterbox: bool | None = None         # barras cinemascope (default True)
+
+
 class RenderRequest(BaseModel):
     scenes: list[RenderScene]
     brand: RenderBrand | None = None
+    style: RenderStyle | None = None
     fps: int = 30
     width: int = 1080
     height: int = 1920
@@ -297,6 +307,7 @@ async def render_video(req: RenderRequest) -> RenderResponse:
                 if s.transition_duration_s and s.transition_duration_s > 0
                 else None
             ),
+            "kenburns": (s.kenburns or None),
         }
         for s in req.scenes
         if s.url and isinstance(s.url, str)
@@ -307,6 +318,7 @@ async def render_video(req: RenderRequest) -> RenderResponse:
     payload: dict[str, Any] = {
         "scenes": scenes,
         "brand": (req.brand.model_dump(exclude_none=True) if req.brand else {}),
+        "style": (req.style.model_dump(exclude_none=True) if req.style else {}),
         "fps": fps,
         "width": req.width,
         "height": req.height,

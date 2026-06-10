@@ -69,6 +69,17 @@
     html[data-theme="light"] .bg-magnet { background: radial-gradient(circle at 50% 50%, rgba(124,58,237,0.14), rgba(167,139,250,0.05) 42%, transparent 66%); }
     @keyframes magnet-breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
 
+    /* ── Starfield inmersivo: partículas con profundidad (3 capas parallax) + modo WARP en el portal ── */
+    #starfield { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: .9; }
+    html[data-theme="light"] #starfield { opacity: .5; }
+    /* Flash radial del portal: destello violeta-blanco al atravesar el centro. */
+    #portal-flash {
+      position: fixed; top: 50%; left: 50%; z-index: 80; pointer-events: none;
+      width: 50vmax; height: 50vmax; margin: -25vmax 0 0 -25vmax; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,255,255,0.95), rgba(196,181,253,0.75) 30%, rgba(124,58,237,0.35) 55%, transparent 75%);
+      opacity: 0; transform: scale(0.2); will-change: transform, opacity;
+    }
+
     .bg-vignette {
       position: fixed; inset: 0; z-index: 2; pointer-events: none;
       background: radial-gradient(120vmax 100vmax at 50% 50%, transparent 50%, rgba(0,0,0,0.55) 100%);
@@ -102,7 +113,9 @@
       position: absolute; inset: 0;
       border-radius: 16px; overflow: hidden;
       background-size: cover; background-position: center; background-color: #18161e;
-      box-shadow: 0 26px 64px -20px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.05) inset;
+      box-shadow: 0 26px 64px -20px rgba(0,0,0,0.85), 0 10px 42px -14px rgba(124,58,237,0.35), 0 0 0 1px rgba(255,255,255,0.05) inset;
+      /* Reflejo tipo vitrina bajo cada tarjeta — da suelo y lujo al carrusel (WebKit/Blink, desktop). */
+      -webkit-box-reflect: below 7px linear-gradient(transparent 58%, rgba(0,0,0,0.30));
       will-change: transform, filter;
       transform-style: preserve-3d;
       /* Repulsión (--px/--py) + lift (--lift) + tilt (--tx/--ty). Lerp suave lo hace el rAF; aquí solo
@@ -203,7 +216,14 @@
 
     /* ── Brand lockup ── */
     .brand-lockup { display: flex; flex-direction: column; align-items: center; margin-bottom: 18px; }
-    .logo-frame { position: relative; width: 58px; height: 58px; margin-bottom: 13px; display: grid; place-items: center; transform: translateZ(40px); }
+    .logo-frame { position: relative; width: 66px; height: 66px; margin-bottom: 14px; display: grid; place-items: center; transform: translateZ(40px); }
+    /* Halo respirante detrás del logo: corazón de luz del panel. */
+    .logo-frame::before {
+      content: ""; position: absolute; inset: -16px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(139,92,246,0.35), rgba(139,92,246,0.10) 55%, transparent 75%);
+      filter: blur(6px); animation: logo-halo 4.5s ease-in-out infinite; z-index: -1;
+    }
+    @keyframes logo-halo { 0%,100% { opacity: .65; transform: scale(1); } 50% { opacity: 1; transform: scale(1.18); } }
     .logo-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid var(--hair); }
     .logo-ring::after {
       content: ""; position: absolute; inset: -5px; border-radius: 50%;
@@ -214,8 +234,21 @@
       animation: ring-spin 8s linear infinite;
     }
     @keyframes ring-spin { to { transform: rotate(360deg); } }
+    /* Segundo anillo contrarrotando (dorado tenue) — mecanismo de joyería alrededor del logo. */
+    .logo-ring::before {
+      content: ""; position: absolute; inset: -10px; border-radius: 50%;
+      border: 1px solid transparent;
+      background: conic-gradient(from 180deg, transparent, rgba(252,238,210,0.35), transparent 28%) border-box;
+      -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      animation: ring-spin 13s linear infinite reverse;
+    }
+    /* Reveal del wordmark letra a letra al cargar. */
+    .wordmark span { display: inline-block; opacity: 0; }
+    .wordmark.lit span { animation: letterUp .7s var(--ease-lux) both; animation-delay: calc(var(--li) * 60ms + 350ms); }
+    @keyframes letterUp { from { opacity: 0; transform: translateY(14px) rotateX(45deg); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
     .logo-img {
-      width: 46px; height: 46px; border-radius: 50%; object-fit: cover; display: block;
+      width: 52px; height: 52px; border-radius: 50%; object-fit: cover; display: block;
       box-shadow: 0 12px 40px -8px rgba(124,58,237,0.45), 0 0 0 1px rgba(167,139,250,0.18);
       animation: logo-float 5s ease-in-out infinite;
     }
@@ -318,6 +351,8 @@
 </head>
 <body>
   <div class="bg-glow" aria-hidden="true"></div>
+  <canvas id="starfield" aria-hidden="true"></canvas>
+  <div id="portal-flash" aria-hidden="true"></div>
   <div class="bg-magnet" id="bg-magnet" aria-hidden="true"></div>
   <div id="cards-bg" aria-hidden="true"><div id="ring"></div></div>
   <div class="bg-vignette" aria-hidden="true"></div>
@@ -431,6 +466,90 @@
   </script>
 
   <script>
+    /* ── STARFIELD con profundidad — 3 capas parallax al cursor + drift + modo WARP (portal) ──
+       Canvas 2D ligero (~140 partículas, DPR cap 2). En warp, las estrellas se estiran radialmente
+       desde el centro con estelas → sensación de salto a velocidad luz al entrar a la herramienta. */
+    (function starfield() {
+      var cv = document.getElementById('starfield');
+      if (!cv || !cv.getContext) return;
+      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var ctx = cv.getContext('2d');
+      var DPR = Math.min(window.devicePixelRatio || 1, 2);
+      var W = 0, H = 0, CX = 0, CY = 0;
+      function resize() {
+        W = window.innerWidth; H = window.innerHeight; CX = W / 2; CY = H / 2;
+        cv.width = W * DPR; cv.height = H * DPR;
+        cv.style.width = W + 'px'; cv.style.height = H + 'px';
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      }
+      resize();
+      window.addEventListener('resize', resize, { passive: true });
+
+      var COLORS = ['rgba(196,181,253,', 'rgba(255,255,255,', 'rgba(167,139,250,', 'rgba(252,238,210,'];
+      var N = 140, stars = [];
+      for (var i = 0; i < N; i++) {
+        var depth = i < N * 0.5 ? 0.35 : (i < N * 0.82 ? 0.65 : 1);  // 3 capas: lejos/medio/cerca
+        stars.push({
+          x: Math.random() * 1, y: Math.random() * 1,    // posición normalizada (sobrevive resize)
+          z: depth,
+          r: depth * (0.6 + Math.random() * 1.3),
+          a: 0.25 + Math.random() * 0.55,
+          tw: 1.5 + Math.random() * 3.5,                  // periodo de parpadeo (s)
+          ph: Math.random() * Math.PI * 2,
+          c: COLORS[(Math.random() * COLORS.length) | 0],
+          dx: (Math.random() - 0.5) * 0.006,              // drift lento (unidades norm/s)
+          dy: (Math.random() - 0.5) * 0.004,
+          wr: 0                                            // radio acumulado en warp
+        });
+      }
+      var px = 0, py = 0;          // parallax suavizado
+      var tpx = 0, tpy = 0;        // objetivo de parallax (lo alimenta el mousemove del carrusel)
+      window.__starsParallax = function(mx, my) { tpx = mx; tpy = my; };
+      var warp = 0;                // 0 = normal · 1 = full warp
+      var warpTarget = 0;
+      window.__warpStars = function() { warpTarget = 1; };
+
+      var last = performance.now();
+      function loop(now) {
+        var dt = Math.min(50, now - last) / 1000; last = now;
+        ctx.clearRect(0, 0, W, H);
+        px += (tpx - px) * 0.04; py += (tpy - py) * 0.04;
+        warp += (warpTarget - warp) * 0.07;
+        var t = now / 1000;
+        for (var i = 0; i < stars.length; i++) {
+          var s = stars[i];
+          s.x = (s.x + s.dx * dt + 1) % 1; s.y = (s.y + s.dy * dt + 1) % 1;
+          var sx = s.x * W - px * 46 * s.z;   // capas cercanas se mueven más → profundidad
+          var sy = s.y * H - py * 34 * s.z;
+          var alpha = s.a * (0.65 + 0.35 * Math.sin(t * (Math.PI * 2) / s.tw + s.ph));
+          if (warp > 0.02) {
+            // WARP: la estrella escapa radialmente del centro, acelerando, con estela.
+            s.wr += (60 + s.wr * 3.2) * s.z * warp * dt;
+            var ang = Math.atan2(sy - CY, sx - CX) || (s.ph);
+            var wx = sx + Math.cos(ang) * s.wr;
+            var wy = sy + Math.sin(ang) * s.wr;
+            var trail = Math.min(140, s.wr * 0.8) * warp;
+            ctx.strokeStyle = s.c + Math.min(1, alpha + warp * 0.5) + ')';
+            ctx.lineWidth = s.r * (1 + warp * 0.6);
+            ctx.beginPath();
+            ctx.moveTo(wx - Math.cos(ang) * trail, wy - Math.sin(ang) * trail);
+            ctx.lineTo(wx, wy);
+            ctx.stroke();
+          } else {
+            ctx.fillStyle = s.c + alpha.toFixed(3) + ')';
+            ctx.beginPath();
+            ctx.arc(sx, sy, s.r, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        if (!reduce) requestAnimationFrame(loop);
+      }
+      if (reduce) { loop(performance.now()); }  // un frame estático
+      else requestAnimationFrame(loop);
+    })();
+  </script>
+
+  <script>
     // ════════ FONDO INTERACTIVO DE TARJETAS ════════
     // 3 fases: (1) carrusel de entrada → (2) emerge el login (las tarjetas se reparten y se apartan
     // del centro) → (3) órbita perpetua variada con capas de profundidad, parallax e "imán" central.
@@ -458,6 +577,9 @@
       var CLEAR = 250;       // radio de la zona prohibida del login (imán que despeja su entorno)
 
       var cards = [];
+      // Variedad real: baraja el pool de obras para que cada tarjeta muestre una imagen distinta
+      // (y cada visita al login tenga una composición diferente).
+      var POOL = IMGS.slice().sort(function () { return Math.random() - 0.5; });
       for (var i = 0; i < N; i++) {
         var depth = (i % 3);                      // 0 = lejos, 1 = medio, 2 = cerca → capas de parallax
         var c = document.createElement('div');
@@ -466,7 +588,7 @@
         // Cara interior: dueña de la imagen y de TODA la reacción al cursor (repulsión/tilt/lift).
         var face = document.createElement('div');
         face.className = 'icard-face';
-        face.style.backgroundImage = "url('" + IMGS[i % IMGS.length] + "')";
+        face.style.backgroundImage = "url('" + POOL[i % POOL.length] + "')";
         c.appendChild(face);
         ring.appendChild(c);
         cards.push({
@@ -503,29 +625,79 @@
       }
       cacheOrbit();
 
-      // ── FASE 1: estado inicial — fuera de pantalla a la derecha, en fila (carrusel). ──
+      // ── COREOGRAFÍA DE ENTRADA (3 actos) — profesional, elegante, marca Cliender ──
+      // Acto 1 · LLUVIA DE OBRAS: las creaciones se materializan repartidas por TODA la pantalla.
+      // Acto 2 · JUEGO VISUAL: derivan en una ola cruzada — las obras "bailan" por el lienzo.
+      // Acto 3 · CONVERGENCIA: todas fluyen a su órbita (círculo) y el login emerge en el centro.
+      function scatterPos(i) {
+        // Cuadrícula 4×4 con jitter: cubre la pantalla sin amontonarse (composición editorial).
+        var cols = 4;
+        var gx = (i % cols + 0.5) / cols - 0.5;
+        var gy = (Math.floor(i / cols) % 4 + 0.5) / 4 - 0.5;
+        return {
+          x: gx * window.innerWidth * 0.86 + (Math.random() - 0.5) * 70,
+          y: gy * window.innerHeight * 0.76 + (Math.random() - 0.5) * 54
+        };
+      }
+      var scatter = cards.map(function (c, i) { return scatterPos(i); });
+
+      // El panel espera escondido: protagonista solo cuando el círculo se forma (Acto 3).
+      var panelWrap = document.querySelector('.panel-wrap');
+      if (panelWrap) gsap.set(panelWrap, { opacity: 0, scale: 0.93, y: 14 });
+
       gsap.set(els, {
-        x: function(i){ return window.innerWidth * 0.62 + i * 116; },
-        y: function(){ return (Math.random() - 0.5) * 90; },
-        z: function(i){ return cards[i].dz; },
-        scale: 0.6, opacity: 0, rotateZ: 0, rotateY: -18, filter: 'blur(12px)'
+        x: function (i) { return scatter[i].x; },
+        y: function (i) { return scatter[i].y; },
+        z: function (i) { return cards[i].dz; },
+        scale: 0, opacity: 0, rotateY: 40, filter: 'blur(16px)',
+        rotation: function () { return (Math.random() - 0.5) * 18; }
       });
 
-      // ── FASE 1→2: el carrusel entra y se reparte en órbita elíptica alrededor del centro. ──
-      gsap.to(els, {
-        x: function(i){ return orbitPos(cards[i], cards[i].ang).x; },
-        y: function(i){ return orbitPos(cards[i], cards[i].ang).y; },
-        z: function(i){ return cards[i].dz; },
-        scale: function(i){ return cards[i].baseScale; },
-        opacity: function(i){ return cards[i].baseOpacity; },
+      var introTl = gsap.timeline({ onComplete: startLoop });
+      // Acto 1 — materialización escalonada (aleatoria) por toda la pantalla.
+      introTl.to(els, {
+        scale: function (i) { return cards[i].baseScale * 1.08; },
+        opacity: function (i) { return Math.min(1, cards[i].baseOpacity + 0.30); },
         rotateY: 0, filter: 'blur(0px)',
-        duration: 1.55, ease: 'power3.out',
-        stagger: { each: 0.06, from: 'start' },
-        onComplete: startLoop
-      });
-
-      // Pulso del halo "imán" justo cuando emerge el login (refuerza el protagonismo del centro).
-      gsap.to(magnet, { opacity: 1, duration: 1.4, delay: 1.25, ease: 'power2.out' });
+        duration: 0.95, ease: 'power3.out',
+        stagger: { each: 0.055, from: 'random' }
+      }, 0);
+      // Acto 2a — TIRA DE CINE: las obras se alinean en un carrusel horizontal (filmstrip)
+      //           más ancho que la pantalla, con una ondulación suave en Y.
+      var STRIP_GAP = 142;
+      introTl.to(els, {
+        x: function (i) { return (i - (N - 1) / 2) * STRIP_GAP; },
+        y: function (i) { return Math.sin(i * 0.9) * 24; },
+        rotation: 0, rotateY: 0,
+        scale: 0.94,
+        opacity: function (i) { return Math.min(1, cards[i].baseOpacity + 0.35); },
+        duration: 0.85, ease: 'power3.inOut',
+        stagger: { each: 0.02, from: 'center' }
+      }, 1.05);
+      // Acto 2b — PASADA ÚNICA de punta a punta: mientras la tira termina de formarse ya
+      //           desliza hacia su extremo izquierdo visible; después recorre TODA su longitud
+      //           en una sola pasada serena (sine), con un respiro de zoom sutil. Nada de vaivén.
+      var stripHalf = ((N - 1) * STRIP_GAP) / 2;
+      var sweep = Math.max(stripHalf - window.innerWidth * 0.32, window.innerWidth * 0.18);
+      introTl.to(ring,  { x: sweep, duration: 0.9, ease: 'power3.inOut' }, 1.05);
+      introTl.to(ring,  { x: -sweep, duration: 2.2, ease: 'sine.inOut' }, 2.0);
+      introTl.to(stage, { scale: 1.10, duration: 1.1, ease: 'sine.inOut', yoyo: true, repeat: 1 }, 2.0);
+      introTl.to(ring,  { x: 0, duration: 0.65, ease: 'power2.inOut' }, 4.2);
+      introTl.to(stage, { scale: 1, duration: 0.65, ease: 'power2.inOut' }, 4.2);
+      // Acto 3 — la tira se disuelve y converge en el anillo orbital.
+      introTl.to(els, {
+        x: function (i) { return orbitPos(cards[i], cards[i].ang).x; },
+        y: function (i) { return orbitPos(cards[i], cards[i].ang).y; },
+        z: function (i) { return cards[i].dz; },
+        scale: function (i) { return cards[i].baseScale; },
+        opacity: function (i) { return cards[i].baseOpacity; },
+        rotation: 0,
+        duration: 1.15, ease: 'power3.inOut',
+        stagger: { each: 0.028, from: 'edges' }
+      }, 4.35);
+      // El centro se enciende y el login EMERGE cuando el círculo se cierra.
+      introTl.to(magnet, { opacity: 1, duration: 1.2, ease: 'power2.out' }, 4.5);
+      if (panelWrap) introTl.to(panelWrap, { opacity: 1, scale: 1, y: 0, duration: 0.95, ease: 'power3.out' }, 4.7);
 
       // ── FASE 3: órbita perpetua + variaciones de profundidad (sin invadir el login). ──
       // FLUIDEZ: tweens infinitos consolidados. Antes: 3 por tarjeta (contrarrotación + escala + opacidad)
@@ -570,6 +742,11 @@
         var my = (e.clientY / window.innerHeight - 0.5);
         gsap.to(stage, { rotateY: mx * 7, rotateX: -my * 6, x: mx * 30, y: my * 22, duration: 1.8, ease: 'power2.out' });
         gsap.to(magnet, { x: mx * 40, y: my * 34, duration: 2.2, ease: 'power2.out' });
+        // Profundidad extra: el panel "mira" sutilmente al cursor (capa 3D propia sobre el stage)
+        // y el campo de estrellas hace contra-parallax por capas → sensación de espacio real.
+        var pnl = document.getElementById('login-panel');
+        if (pnl) gsap.to(pnl, { rotateY: mx * 5, rotateX: -my * 4.2, duration: 1.4, ease: 'power2.out' });
+        if (window.__starsParallax) window.__starsParallax(mx, my);
       }, { passive: true });
 
       // Reacción de proximidad + JUEGO: las tarjetas cercanas al cursor (1) se APARTAN (repulsión magnética),
@@ -694,23 +871,35 @@
           }
           // 2) El halo "imán" se intensifica y crece: el centro se enciende como boca del portal.
           tl.to(magnet, { opacity: 1, scale: 1.6, duration: 0.7, ease: 'power2.out' }, 0.03);
+          // 2b) WARP: el campo de estrellas salta a velocidad luz hacia el espectador.
+          tl.call(function() { if (window.__warpStars) window.__warpStars(); }, null, 0.05);
 
-          // 3) Dolly-in de cámara: el contenedor entero se acerca (escala + Z) → te "traga" el centro.
+          // 3) Dolly-in de cámara con DESENFOQUE progresivo: el contenedor entero se acerca
+          //    (escala + Z) mientras pierde foco → te "traga" el centro como atravesar un túnel.
           tl.to(stage, {
             scale: 3.1, z: 820, rotateX: 0, rotateY: 0, x: 0, y: 0,
+            filter: 'blur(10px)',
             duration: 0.80, ease: 'power3.in'
           }, 0.08);
 
-          // 4) TODAS las tarjetas convergen al centro (x:0,y:0), se cierran y funden.
+          // 4) TODAS las tarjetas convergen al centro en ESPIRAL (rotación alternada), se cierran y funden.
           tl.to(els, {
-            x: 0, y: 0, z: 0, rotation: 0, rotateY: 0,
+            x: 0, y: 0, z: 0, rotateY: 0,
+            rotation: function(idx) { return (idx % 2 ? 140 : -140); },
             scale: 0.32, opacity: 0, filter: 'blur(10px)',
             duration: 0.72, ease: 'power3.inOut',
             stagger: { each: 0.008, from: 'edges' }
           }, 0.08);
 
-          // 5) Fundido final: el portal se cierra del todo justo antes del redirect (~0.95s total).
-          tl.to(stage, { opacity: 0, duration: 0.28, ease: 'power1.in' }, 0.66);
+          // 4b) FLASH del portal: destello violeta-blanco justo al atravesar el centro.
+          var flash = document.getElementById('portal-flash');
+          if (flash) {
+            tl.to(flash, { opacity: 1, scale: 1.35, duration: 0.30, ease: 'power2.in' }, 0.52);
+            tl.to(flash, { opacity: 0, scale: 2.1, duration: 0.34, ease: 'power2.out' }, 0.82);
+          }
+
+          // 5) Fundido final: el portal se cierra del todo justo antes del redirect (~1.05s total).
+          tl.to(stage, { opacity: 0, duration: 0.28, ease: 'power1.in' }, 0.70);
         } catch (err) {
           done();  // cualquier fallo de animación → no bloquear el acceso
         }
@@ -754,7 +943,20 @@
       // Tilt 3D sutil del panel siguiendo el cursor (el login "mira" al ratón) + highlight especular.
       var panel = document.getElementById('login-panel');
       if (panel && !prefersReduced) {
-        setTimeout(function(){ panel.classList.add('is-live'); }, 2300);  // tras emerger
+        setTimeout(function(){ panel.classList.add('is-live'); }, 5800);  // tras emerger (fin del Acto 3)
+        // Reveal del wordmark letra a letra (CLIENDER sube letra por letra con blur que enfoca).
+        try {
+          var wm = document.querySelector('.wordmark');
+          if (wm && !wm.dataset.lit) {
+            var txt = wm.textContent; wm.textContent = ''; wm.dataset.lit = '1';
+            Array.prototype.forEach.call(txt, function(ch, i) {
+              var s = document.createElement('span');
+              s.textContent = ch; s.style.setProperty('--li', i);
+              wm.appendChild(s);
+            });
+            wm.classList.add('lit');
+          }
+        } catch (e) {}
         panel.addEventListener('mousemove', function(e) {
           var r = panel.getBoundingClientRect();
           var px = (e.clientX - r.left) / r.width;   // 0..1
@@ -781,10 +983,103 @@
     });
 
     // ── Auth usando _SB (fetch nativo, sin SDK externo) ──
+    // ── CLERK (opcional, activable): define window.__CLERK_PK = 'pk_test_…' / 'pk_live_…'
+    //    ANTES de este script (o aquí mismo) y el login pasa a autenticar contra Clerk.
+    //    Sin clave → sigue Supabase (_SB) exactamente como hasta ahora. Mismo panel, mismo portal.
+    window.__CLERK_PK = window.__CLERK_PK || 'pk_test_cHJpbWFyeS1yZWRmaXNoLTU3LmNsZXJrLmFjY291bnRzLmRldiQ';
+    window.__AUTH_READY = (function () {
+      if (!window.__CLERK_PK) return Promise.resolve(window._SB);
+      return new Promise(function (resolve) {
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js';
+        s.crossOrigin = 'anonymous';
+        // El bundle de navegador se AUTO-inicializa al cargar leyendo esta data-attr y deja
+        // window.Clerk como INSTANCIA lista (no constructor). Sin la attr, lanza Missing publishableKey.
+        s.setAttribute('data-clerk-publishable-key', window.__CLERK_PK);
+        s.onload = function () {
+          (async function () {
+            try {
+              // Soporta ambas formas del SDK: instancia auto-creada (bundle navegador con data-attr)
+              // o constructor (por si la CDN sirviera la variante headless).
+              var clerk = (typeof window.Clerk === 'function') ? new window.Clerk(window.__CLERK_PK) : window.Clerk;
+              if (!clerk.loaded) await clerk.load();
+              var _lastSi = null, _lastEmail = '';  // sign-in pendiente de verificar dispositivo (client trust)
+              resolve({
+                _clerk: clerk,
+                getSession: function () {
+                  return Promise.resolve({ data: { session: clerk.user ? { user: { email: (clerk.user.primaryEmailAddress || {}).emailAddress, id: clerk.user.id } } : null } });
+                },
+                signInWithPassword: async function (opts) {
+                  try {
+                    var si = await clerk.client.signIn.create({ identifier: opts.email, password: opts.password });
+                    if (si.status === 'complete') {
+                      await clerk.setActive({ session: si.createdSessionId });
+                      var u = clerk.user || {};
+                      return { data: { user: { email: opts.email, id: u.id || si.id } } };
+                    }
+                    if (si.status === 'needs_client_trust') {
+                      // Dispositivo nuevo: Clerk exige código por email. Lo enviamos YA y el panel
+                      // muestra el campo de código — flujo integrado, sin salir del login.
+                      _lastSi = si; _lastEmail = opts.email;
+                      try {
+                        if (si.mfa && si.mfa.sendEmailCode) { await si.mfa.sendEmailCode(); }
+                        else {
+                          var f = (si.supportedSecondFactors || []).find(function (x) { return x.strategy === 'email_code'; });
+                          await si.prepareSecondFactor({ strategy: 'email_code', emailAddressId: f && f.emailAddressId });
+                        }
+                      } catch (e2) {}
+                      return { needs_trust: true };
+                    }
+                    return { error: { message: 'Verificación adicional requerida (' + si.status + ') — confígurala en Clerk.' } };
+                  } catch (e) {
+                    var msg = (e && e.errors && e.errors[0] && (e.errors[0].longMessage || e.errors[0].message)) || 'Invalid credentials';
+                    return { error: { message: msg } };
+                  }
+                },
+                resetPasswordForEmail: function () { return Promise.resolve({ error: { message: 'La recuperación se gestiona desde Clerk — pídele al admin restablecerla en dashboard.clerk.com.' } }); },
+                verifyTrustCode: async function (code) {
+                  try {
+                    if (!_lastSi) return { error: { message: 'Sesión de verificación caducada — vuelve a introducir email y contraseña.' } };
+                    var r;
+                    if (_lastSi.mfa && _lastSi.mfa.verifyEmailCode) { r = await _lastSi.mfa.verifyEmailCode({ code: code }); }
+                    else { r = await _lastSi.attemptSecondFactor({ strategy: 'email_code', code: code }); }
+                    if (r.status === 'complete') {
+                      await clerk.setActive({ session: r.createdSessionId });
+                      var u2 = clerk.user || {};
+                      return { data: { user: { email: _lastEmail, id: u2.id || r.id } } };
+                    }
+                    return { error: { message: 'Código incorrecto o caducado — inténtalo de nuevo.' } };
+                  } catch (e3) {
+                    var m3 = (e3 && e3.errors && e3.errors[0] && (e3.errors[0].longMessage || e3.errors[0].message)) || 'Código incorrecto.';
+                    return { error: { message: m3 } };
+                  }
+                },
+                signOut: function () { return clerk.signOut(); }
+              });
+            } catch (e) { resolve(window._SB); }  // Clerk no carga → fallback Supabase, login nunca se rompe
+          })();
+        };
+        s.onerror = function () { resolve(window._SB); };
+        document.head.appendChild(s);
+      });
+    })();
+
     (function initAuth() {
       var sb = window._SB;
-      // Sesión activa → redirige sin animar (anti-trap + UX).
-      sb.getSession().then(function(r) { if (r.data && r.data.session) window.location.replace('Canvas Prototype.html'); });
+      // El submit usa `sb` ya resuelto: adaptador Clerk si hay __CLERK_PK, Supabase si no.
+      var wantSignout = /[?&]signout=1/.test(window.location.search);
+      (window.__AUTH_READY || Promise.resolve(window._SB)).then(function (a) {
+        if (a) sb = a;
+        if (wantSignout) {
+          // Venimos de "salir" en la herramienta: cerrar también la sesión Clerk y quedarnos
+          // en el login (sin auto-redirect, que causaría bucle Login↔Canvas).
+          try { if (a && a.signOut) a.signOut(); } catch (e) {}
+          try { history.replaceState(null, '', 'Login.html'); } catch (e) {}
+          return;
+        }
+        // Sesión activa → redirige sin animar (anti-trap + UX).
+        sb.getSession().then(function (r) { if (r.data && r.data.session) window.location.replace('Canvas Prototype.html'); });
+      });
       // Prefetch del canvas + sus scripts mientras el usuario escribe → al hacer login ya estan en cache.
       try {
         ['Canvas Prototype.html','prototype/config.js','prototype/app.jsx','prototype/nodes.jsx'].forEach(function(href){
@@ -806,13 +1101,56 @@
         if (!ok) { errEl.style.animation = 'none'; void errEl.offsetWidth; errEl.style.animation = 'shake .4s'; }
       }
 
+      // Éxito de login (contraseña o código de dispositivo): sesión local + portal warp + redirect.
+      function loginOk(res) {
+        localStorage.setItem('cdpro-user-email', res.data.user.email);
+        localStorage.setItem('cdpro-user-id', res.data.user.id);
+        ctaText.textContent = 'Bienvenido';
+        var redirected = false;
+        function go() { if (redirected) return; redirected = true; window.location.replace('Canvas Prototype.html'); }
+        if (typeof window.__portalEnter === 'function') {
+          var guard = setTimeout(go, 1150);   // red de seguridad si la animación no completa
+          window.__portalEnter(function() { clearTimeout(guard); go(); });
+        } else {
+          setTimeout(go, 250);                // sin portal → acceso inmediato (anti-trap)
+        }
+      }
+
+      var trustMode = false;   // true = el panel está pidiendo el código de verificación del email
+      function showTrustField() {
+        trustMode = true;
+        ctaText.textContent = 'Verificar código'; btn.disabled = false;
+        if (!document.getElementById('trust-code-wrap')) {
+          var cw = document.createElement('div');
+          cw.className = 'field'; cw.id = 'trust-code-wrap';
+          cw.innerHTML = '<input class="field-input" id="login-code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder=" " maxlength="8"/>' +
+                         '<label class="field-label" for="login-code">Código de verificación</label>' +
+                         '<span class="field-glow" aria-hidden="true"></span>';
+          form.insertBefore(cw, form.querySelector('.row'));
+          cw.style.animation = 'rise .6s var(--ease-lux) both';
+        }
+        var ci = document.getElementById('login-code'); if (ci) { ci.value = ''; ci.focus(); }
+        showError('Dispositivo nuevo — te enviamos un código a tu email. Introdúcelo abajo.', true);
+      }
+
       form.addEventListener('submit', async function(e) {
         e.preventDefault();
+        // Modo verificación: el submit valida el código del email (client trust de Clerk).
+        if (trustMode) {
+          var code = ((document.getElementById('login-code') || {}).value || '').trim();
+          if (!code) { showError('Introduce el código que te enviamos por email.'); return; }
+          errEl.style.display = 'none'; ctaText.textContent = 'Verificando…'; btn.disabled = true;
+          var vres = await sb.verifyTrustCode(code);
+          if (vres.error) { ctaText.textContent = 'Verificar código'; btn.disabled = false; showError(vres.error.message); return; }
+          loginOk(vres);
+          return;
+        }
         var email = document.getElementById('login-email').value.trim().toLowerCase();
         var pass = document.getElementById('login-pass').value;
         if (!email || !pass) { showError('Email y contraseña son obligatorios.'); return; }
         errEl.style.display = 'none'; ctaText.textContent = 'Verificando…'; btn.disabled = true;
         var res = await sb.signInWithPassword({ email: email, password: pass });
+        if (res && res.needs_trust) { showTrustField(); return; }
         if (res.error) {
           ctaText.textContent = 'Acceder'; btn.disabled = false;
           var m = (res.error.message || '').toLowerCase();
@@ -822,23 +1160,7 @@
           else showError(res.error.message);
           return;
         }
-        localStorage.setItem('cdpro-user-email', res.data.user.email);
-        localStorage.setItem('cdpro-user-id', res.data.user.id);
-        ctaText.textContent = 'Bienvenido';
-
-        // ── TRANSICIÓN PORTAL ── Atraviesa el centro del carrusel hacia la herramienta.
-        // El redirect se dispara UNA sola vez (guardia), lo lance el portal o el fallback.
-        var redirected = false;
-        function go() { if (redirected) return; redirected = true; window.location.replace('Canvas Prototype.html'); }
-
-        if (typeof window.__portalEnter === 'function') {
-          // Red de seguridad: si la animación no completara por cualquier motivo, redirige igual a los 2s.
-          var guard = setTimeout(go, 1150);
-          window.__portalEnter(function() { clearTimeout(guard); go(); });
-        } else {
-          // Sin portal (GSAP no cargó / reduced-motion / fondo desactivado) → acceso inmediato (anti-trap).
-          setTimeout(go, 250);
-        }
+        loginOk(res);
       });
 
       forgot.addEventListener('click', async function(e) {

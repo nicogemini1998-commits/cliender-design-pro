@@ -11,7 +11,7 @@ export function RemotionRoot() {
       fps={30}
       width={1080}
       height={1920}
-      defaultProps={{ scenes: [], brand: {}, fps: 30 }}
+      defaultProps={{ scenes: [], brand: {}, fps: 30, style: {} }}
       calculateMetadata={calcStitchMetadata}
     />
   );

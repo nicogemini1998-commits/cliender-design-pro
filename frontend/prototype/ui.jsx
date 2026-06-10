@@ -402,6 +402,9 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
   // para que el usuario sepa exactamente qué hace cada transición.
   const VIDEO_TRANSITIONS = {
     dissolve: { label: "Disolvencia", description: "Crossfade suave: el clip nuevo se funde sobre el anterior. Elegante y fluido — el estándar profesional." },
+    lumafade: { label: "Luma fade", description: "Fundido por luminancia: las luces aparecen primero, después las sombras. El crossfade del cine documental." },
+    filmburn: { label: "Film burn", description: "Flash cálido de película quemada con bloom naranja. Transición orgánica de cine analógico." },
+    blurwipe: { label: "Blur wipe", description: "El clip emerge desde el desenfoque hasta quedar nítido. Suave y premium, usado en moda y belleza." },
     fade:     { label: "Fundido a negro", description: "El clip se oscurece a negro y el siguiente emerge desde negro. Marca un cambio de bloque o de tiempo." },
     slide:    { label: "Deslizamiento", description: "El clip nuevo entra empujando desde la derecha. Dinámico y direccional, ideal para ritmo ágil." },
     slideup:  { label: "Deslizamiento vertical", description: "El clip nuevo sube desde abajo cubriendo al anterior. Moderno, tipo feed/stories." },
@@ -412,6 +415,18 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
     cut:      { label: "Corte seco", description: "Cambio instantáneo sin transición. Directo y rítmico, como el montaje clásico." },
   };
   const [transition, setTransition] = React.useState("dissolve");
+  // Looks cinematográficos — espejo de LOOKS en Remotion Stitch.jsx (Cinematic Engine v2)
+  const VIDEO_LOOKS = {
+    cine:    { label: "Cine (Teal & Orange)", description: "Grade de blockbuster: sombras teal, luces ámbar, negros levantados estilo película 16mm." },
+    golden:  { label: "Golden Hour", description: "Luz dorada de atardecer: cálido y nostálgico, piel favorecida. Lifestyle y momentos humanos." },
+    noir:    { label: "Film Noir", description: "Blanco y negro de alto contraste con grano marcado. Dramático y editorial." },
+    vintage: { label: "Vintage Film", description: "Película analógica: colores lavados, dominante cálida, grano visible. Nostalgia auténtica." },
+    clean:   { label: "Clean Commercial", description: "Pulido de anuncio premium: contraste sutil, color fiel, mínimo grano. Producto y marca." },
+    none:    { label: "Sin grade", description: "Color original de los clips, sin tratamiento. Solo montaje y transiciones." },
+  };
+  const [look, setLook] = React.useState("cine");
+  const [letterbox, setLetterbox] = React.useState(true);
+  const [grain, setGrain] = React.useState(true);
   const _delTimer = React.useRef(null);
 
   const askDelete = (e, id) => {
@@ -468,7 +483,7 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
     try {
       const r = await fetch(`${API}/chat/render`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenes, brand: { name: "Cliender", accent: "#7C3AED" }, fps: 24, width: 1080, height: 1920 }),
+        body: JSON.stringify({ scenes, brand: { name: "Cliender", accent: "#7C3AED" }, style: { look, letterbox, grain: grain ? 0.18 : 0 }, fps: 24, width: 1080, height: 1920 }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.detail || data.error || `HTTP ${r.status}`);
@@ -577,8 +592,8 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
               {selected.length} escena{selected.length === 1 ? "" : "s"} · toca para ordenar
             </span>
             {selected.length >= 2 && (
-              <div className="vedit-transition-picker" style={{ display: "flex", flexDirection: "column", gap: 4, marginRight: "auto", maxWidth: 380 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div className="vedit-cine-panel" style={{ display: "flex", flexDirection: "column", gap: 6, marginRight: "auto", maxWidth: 460 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <span className="mono" style={{ fontSize: 10, opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.1em" }}>Transición</span>
                   <select className="vedit-select" style={{ height: 28, fontSize: 12, padding: "2px 8px" }}
                     value={transition} onChange={(e) => setTransition(e.target.value)}>
@@ -586,8 +601,28 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
                       <option key={id} value={id}>{t.label}</option>
                     ))}
                   </select>
+                  <span className="mono" style={{ fontSize: 10, opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.1em" }}>Look</span>
+                  <select className="vedit-select" style={{ height: 28, fontSize: 12, padding: "2px 8px" }}
+                    value={look} onChange={(e) => setLook(e.target.value)}>
+                    {Object.entries(VIDEO_LOOKS).map(([id, l]) => (
+                      <option key={id} value={id}>{l.label}</option>
+                    ))}
+                  </select>
                 </div>
-                <span style={{ fontSize: 11, opacity: 0.65, lineHeight: 1.35 }}>{VIDEO_TRANSITIONS[transition] && VIDEO_TRANSITIONS[transition].description}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, opacity: 0.8, cursor: "pointer" }}>
+                    <input type="checkbox" checked={letterbox} onChange={(e) => setLetterbox(e.target.checked)} />
+                    Letterbox cine
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, opacity: 0.8, cursor: "pointer" }}>
+                    <input type="checkbox" checked={grain} onChange={(e) => setGrain(e.target.checked)} />
+                    Grano 16mm
+                  </label>
+                </div>
+                <span style={{ fontSize: 11, opacity: 0.65, lineHeight: 1.35 }}>
+                  {VIDEO_TRANSITIONS[transition] && VIDEO_TRANSITIONS[transition].description}{" "}
+                  {VIDEO_LOOKS[look] && <em style={{ opacity: 0.85 }}>· {VIDEO_LOOKS[look].description}</em>}
+                </span>
               </div>
             )}
             <div style={{ display: "flex", gap: 6 }}>

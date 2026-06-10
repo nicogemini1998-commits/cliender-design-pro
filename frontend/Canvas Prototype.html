@@ -30,16 +30,22 @@
         localStorage.removeItem(LS_KEY);
         localStorage.removeItem('cdpro-user-email');
         localStorage.removeItem('cdpro-user-id');
-        window.location.replace('Login.html');
+        // signout=1: el Login cierra TAMBIÉN la sesión Clerk antes de su auto-redirect (evita bucle).
+        window.location.replace('Login.html?signout=1');
       };
 
       // Verificar sesión — ocultar app hasta confirmar
       document.documentElement.style.visibility = 'hidden';
+      // Válido con CUALQUIERA de los dos logins:
+      //  · Supabase (legacy): token sb-*-auth-token vivo.
+      //  · Clerk: el login marca cdpro-user-email/id en localStorage (la sesión real vive en
+      //    cookies de Clerk). Sin esto, Canvas→Login→Canvas rebotaba en bucle (flash blanco/negro).
       var session = getSession();
-      if (!session) {
+      var clerkMark = localStorage.getItem('cdpro-user-email') && localStorage.getItem('cdpro-user-id');
+      if (!session && !clerkMark) {
         window.location.replace('Login.html');
       } else {
-        localStorage.setItem('cdpro-user-email', session.user?.email || localStorage.getItem('cdpro-user-email') || '');
+        if (session) localStorage.setItem('cdpro-user-email', session.user?.email || localStorage.getItem('cdpro-user-email') || '');
         document.documentElement.style.visibility = '';
       }
     })();
@@ -76,7 +82,23 @@
     #enter-veil { position: fixed; inset: 0; z-index: 99999; pointer-events: none;
       background: radial-gradient(70vmax 60vmax at 50% 45%, #15131c 0%, #0a0a0f 55%, #060608 100%);
       opacity: 1; transition: opacity .75s cubic-bezier(0.22,1,0.36,1); }
+    /* Eco del portal: resplandor violeta central que "llega" del salto warp del login y se disipa. */
+    #enter-veil::after {
+      content: ""; position: absolute; top: 50%; left: 50%;
+      width: 60vmax; height: 60vmax; margin: -30vmax 0 0 -30vmax; border-radius: 50%;
+      background: radial-gradient(circle, rgba(196,181,253,0.34), rgba(124,58,237,0.16) 45%, transparent 70%);
+      animation: veilEcho 1.4s cubic-bezier(0.22,1,0.36,1) forwards;
+    }
+    @keyframes veilEcho { from { transform: scale(1.5); opacity: 1; } to { transform: scale(0.55); opacity: 0; } }
     #enter-veil.gone { opacity: 0; }
+    /* Llegada inmersiva: la herramienta ENFOCA — entra con leve zoom-out + desenfoque que se aclara,
+       como si la cámara aterrizara del salto. Solo transform+filter en #root (compositor-friendly). */
+    body.app-arrive #root { animation: appFocus .95s cubic-bezier(0.22,1,0.36,1) both; }
+    @keyframes appFocus {
+      from { transform: scale(1.05); filter: blur(12px) saturate(1.3); opacity: .65; }
+      to   { transform: scale(1);    filter: blur(0)    saturate(1);   opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) { body.app-arrive #root { animation: none; } #enter-veil::after { animation: none; opacity: 0; } }
   </style>
   <script>
     (function(){
@@ -84,7 +106,7 @@
       var root = document.getElementById('root');
       var t0 = Date.now();
       function mounted(){ return root && root.children && root.children.length > 0; }
-      function hide(){ if(!veil) return; veil.classList.add('gone'); setTimeout(function(){ if(veil.parentNode) veil.parentNode.removeChild(veil); }, 850); }
+      function hide(){ if(!veil) return; document.body.classList.add('app-arrive'); veil.classList.add('gone'); setTimeout(function(){ if(veil.parentNode) veil.parentNode.removeChild(veil); }, 850); }
       var iv = setInterval(function(){
         if (mounted() || Date.now() - t0 > 6000) { clearInterval(iv); setTimeout(hide, 150); }
       }, 90);
@@ -111,12 +133,13 @@
   <!-- Runtime config (plain JS, must load before any jsx) -->
   <script src="prototype/config.js"></script>
 
-  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
-  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <!-- React PRODUCTION: mitad de peso y renders notablemente más rápidos que la build development -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
-  <!-- Three.js para astronauta 3D -->
-  <script src="https://unpkg.com/three@0.160.0/build/three.min.js" crossorigin="anonymous"></script>
+  <!-- Three.js (astronauta 3D + shader loader): defer — no bloquea el arranque; nada lo usa hasta runtime -->
+  <script defer src="https://unpkg.com/three@0.160.0/build/three.min.js" crossorigin="anonymous"></script>
 
   <script type="text/babel" src="prototype/nodes.jsx"></script>
   <script type="text/babel" src="prototype/vault.jsx"></script>
