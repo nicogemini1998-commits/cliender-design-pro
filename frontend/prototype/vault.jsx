@@ -1,116 +1,12 @@
 /* prototype/vault.jsx — v3
  * Layout: sidebar (220px) + galería (flex 1)
  * ADN Visual → popup central sobre fondo blur
- * Expone: MoodboardVault, VaultButton, SAMPLE_MOODBOARDS, moodboardReducer, runMockAudit
+ * Expone: MoodboardVault, VaultButton, moodboardReducer, runRealAudit, _mapManifest
  */
 
-// ─────────────────────────────────────────────────────────────────
-// DATOS DE MUESTRA
-// ─────────────────────────────────────────────────────────────────
-const VAULT_THEMES = {
-  "warm-editorial": {
-    name: "Warm Editorial",
-    seeds: ["wmEd1","wmEd2","wmEd3","wmEd4","wmEd5","wmEd6"],
-    manifest: {
-      colorPalette: ["#2A1F18","#5C3D2E","#A47551","#D9B58C","#F2E3CB"],
-      lightingStyle: "golden-hour rim light at 45°, soft falloff, gentle ambient bounce, no harsh shadows",
-      cameraLensFeel: "85mm f/1.4 anamorphic, shallow DOF, mild chromatic aberration on edges",
-      characterTraits: ["natural skin texture","minimal makeup","linen and wool fabrics","soft tousled hair"],
-      compositionRules: ["subject off-center to the right","negative space top third","horizon low"],
-      moodKeywords: ["editorial","contemplative","refined","autumnal"],
-      masterStylePrompt: "Editorial fashion photography, golden hour warm autumn palette, 85mm shallow DOF with anamorphic flare, linen and wool textures, contemplative subject framed off-center with negative space above, soft natural light with gentle rim at 45°, neutral warm grading, subtle 35mm film grain.",
-      negativePrompt: "plastic skin, oversaturated, low-fi, watermark, text, hdr",
-      consistencyScore: 0.92
-    }
-  },
-  "neon-tokyo": {
-    name: "Neon Tokyo Night",
-    seeds: ["nTk1","nTk2","nTk3","nTk4","nTk5"],
-    manifest: {
-      colorPalette: ["#0A0419","#3D1466","#8B5CF6","#F9A8D4","#06B6D4"],
-      lightingStyle: "neon practicals, mixed magenta + cyan, hard speculars on wet asphalt",
-      cameraLensFeel: "35mm f/1.8, mild barrel distortion, halated highlights, anamorphic streaks",
-      characterTraits: ["wet hair","translucent rain ponchos","reflective fabrics"],
-      compositionRules: ["dutch angle 5–10°","deep one-point perspective"],
-      moodKeywords: ["cyberpunk","rain-soaked","kinetic","lonely"],
-      masterStylePrompt: "Cyberpunk Tokyo night street photography, neon magenta and cyan practicals reflecting on wet asphalt, 35mm anamorphic with halation, slight dutch angle and deep one-point perspective, translucent ponchos and reflective textures, moody high-contrast, photographic grain.",
-      negativePrompt: "daylight, pastel sky, cartoon, low contrast, blurry",
-      consistencyScore: 0.87
-    }
-  },
-  "brutalist-monochrome": {
-    name: "Brutalist Monochrome",
-    seeds: ["brM1","brM2","brM3","brM4","brM5","brM6","brM7"],
-    manifest: {
-      colorPalette: ["#0A0A0A","#1F1F1F","#3F3F3F","#9CA3AF","#F4F4F5"],
-      lightingStyle: "north-window daylight, single source, deep shadow side, no fill",
-      cameraLensFeel: "50mm f/2 medium-format, edge-to-edge sharpness, mild micro-contrast",
-      characterTraits: ["concrete textures","geometric grids","minimal subjects"],
-      compositionRules: ["centered subject","symmetry","frame-within-frame"],
-      moodKeywords: ["austere","monumental","silent","minimalist"],
-      masterStylePrompt: "Brutalist architectural photography, pure monochrome with restrained mid-tones, single north-window source casting deep unfilled shadows, 50mm medium-format sharpness, perfectly symmetrical centered composition with frame-within-frame, monumental and silent.",
-      negativePrompt: "warm tones, color cast, hdr, busy composition",
-      consistencyScore: 0.94
-    }
-  }
-};
-
-function buildSampleMoodboard(themeKey) {
-  const t = VAULT_THEMES[themeKey];
-  const images = t.seeds.map((seed, i) => {
-    const p = t.manifest.colorPalette;
-    const c1 = p[i % p.length], c2 = p[(i+1)%p.length], c3 = p[(i+2)%p.length];
-    const w = 600, h = 600 + seed.charCodeAt(2) % 4 * 80;
-    const ns = (seed.charCodeAt(0)*31 + seed.charCodeAt(2)) % 99;
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${w} ${h}' preserveAspectRatio='xMidYMid slice'>`+
-      `<defs><radialGradient id='a' cx='${20+i*12}%' cy='${30+i*8}%' r='75%'>`+
-      `<stop offset='0%' stop-color='${c1}'/><stop offset='55%' stop-color='${c2}'/><stop offset='100%' stop-color='${c3}'/>`+
-      `</radialGradient><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='1' seed='${ns}'/>`+
-      `<feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.10 0'/></filter></defs>`+
-      `<rect width='${w}' height='${h}' fill='url(#a)'/><rect width='${w}' height='${h}' filter='url(#n)'/></svg>`;
-    return { id: `img-${seed}`, url: "data:image/svg+xml;utf8," + encodeURIComponent(svg) };
-  });
-  return { id:`mb-${themeKey}`, name:t.name, images, manifest:{moodboardId:`mb-${themeKey}`,...t.manifest}, auditStatus:"ready", locked:false };
-}
-
-const SAMPLE_MOODBOARDS = [
-  {
-    id: "mb-omgadrian-v2",
-    name: "omgadrian · AP Classic Cine",
-    images: [
-      { id: "img-01", url: "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=800&q=80" },
-      { id: "img-02", url: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&q=80" },
-      { id: "img-03", url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80" },
-      { id: "img-04", url: "https://images.unsplash.com/photo-1493558103817-58b2924bce98?w=800&q=80" },
-      { id: "img-05", url: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=800&q=80" },
-      { id: "img-06", url: "https://images.unsplash.com/photo-1520466809213-7b9a56adcd45?w=800&q=80" },
-    ],
-    manifest: {
-      moodboardId: "mb-omgadrian-v2",
-      colorPalette: ["#1a3a52", "#2d5a7b", "#f4a460", "#e8c4a0", "#4a9fd8"],
-      lightingStyle: "Golden hour / twilight transition. Cool-to-warm cross-contamination. Rim-lit at 45°, deep blue-violet underlit foregrounds, warm sodium glow beneath cool atmospheric haze.",
-      cameraLensFeel: "Wide-angle 24-35mm, rectilinear perspective, pronounced depth separation, shallow DOF on foreground anchors, infinity focus on distant geometry.",
-      characterTraits: ["vast environmental scale", "layered depth geography", "serene isolation", "chromatic tension cool+warm", "contemplative human presence"],
-      compositionRules: ["rule of thirds with foreground-mid-background stratification", "elevated vantage across expansive environments", "leading lines to vanishing point", "silhouetted dark foreground anchor", "uncluttered sky 30-40% frame"],
-      moodKeywords: ["contemplative majesty", "solitary awe", "twilight threshold", "chromatic duality", "cinematic travel", "wanderlust"],
-      masterStylePrompt: "Cinematic travel video postcard, Split Tone color grade with cool teal shadows and warm amber highlights, 16mm film grain, 9:16 vertical format, shallow DOF, golden hour or soft overcast light, gimbal-smooth camera movement, vintage filmic character, AP Classic Cine aesthetic, editorial travel photography",
-      negativePrompt: "plastic skin, oversaturated, low-fi, watermark, text overlays, harsh midday light, handheld shake, cartoon, hdr, busy composition, stock footage look",
-      consistencyScore: 0.78,
-    },
-    auditStatus: "ready",
-    locked: false,
-  },
-  buildSampleMoodboard("warm-editorial"),
-  buildSampleMoodboard("neon-tokyo"),
-  buildSampleMoodboard("brutalist-monochrome")
-];
-
-async function runMockAudit(images) {
-  await new Promise(r => setTimeout(r, 1800));
-  const themes = Object.values(VAULT_THEMES);
-  const base = themes[Math.floor(Math.random() * themes.length)].manifest;
-  return { moodboardId:"mock", ...base, consistencyScore: Math.max(0.6, Math.min(0.95, 0.7 + images.length%6*0.04)) };
-}
+// Sin datos de muestra: los moodboards reales viven en Supabase (/moodboards)
+// y se sincronizan vía window.__moodboards. El análisis es SIEMPRE el real
+// (Vision Auditor backend) — runRealAudit más abajo.
 
 // ─────────────────────────────────────────────────────────────────
 // REAL AUDIT — POST /moodboards/audit (Vision Auditor backend)
@@ -828,4 +724,4 @@ function moodboardReducer(state, action) {
   }
 }
 
-Object.assign(window, { MoodboardVault, VaultButton, SAMPLE_MOODBOARDS, moodboardReducer, runMockAudit, runRealAudit, _mapManifest });
+Object.assign(window, { MoodboardVault, VaultButton, moodboardReducer, runRealAudit, _mapManifest });

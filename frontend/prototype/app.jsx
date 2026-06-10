@@ -93,10 +93,10 @@ const NewMoodboardForm = window.NewMoodboardForm;
 const SAMPLE_CLIENTS = window.SAMPLE_CLIENTS;
 const MoodboardVault = window.MoodboardVault;
 const moodboardReducer = window.moodboardReducer;
-const SAMPLE_MOODBOARDS = window.SAMPLE_MOODBOARDS;
+// (SAMPLE_MOODBOARDS eliminado — los moodboards reales vienen de Supabase vía __moodboards)
 const GalleryPanel = window.GalleryPanel;
 const NotificationProvider = window.NotificationProvider;
-const fakeMediaUrlForGeneration = window.fakeMediaUrlForGeneration;
+// (fakeMediaUrlForGeneration eliminado — solo media real del backend)
 const PromptNode = window.PromptNode;
 const ImageNode = window.ImageNode;
 const VideoNode = window.VideoNode;

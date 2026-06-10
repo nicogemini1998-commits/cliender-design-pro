@@ -1020,42 +1020,8 @@ function GalleryButton({ count, onClick }) {
 // ===========================================================================
 // Helpers — placeholder content for generation results
 // ===========================================================================
-function hashStr(s) {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return h >>> 0;
-}
-function hueFromSeed(seed, offset = 0) {
-  return (hashStr(seed) + offset * 137) % 360;
-}
-function fakeMediaUrlForGeneration(seed, kind) {
-  const w = kind === "video" ? 720 : 600;
-  const h = kind === "video" ? 405 : 600;
-  const h1 = hueFromSeed(seed, 0);
-  const h2 = hueFromSeed(seed, 3);
-  const h3 = hueFromSeed(seed, 7);
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${w} ${h}' preserveAspectRatio='xMidYMid slice'>
-    <defs>
-      <radialGradient id='g1' cx='25%' cy='30%' r='80%'>
-        <stop offset='0%' stop-color='hsl(${h1},65%,55%)'/>
-        <stop offset='60%' stop-color='hsl(${h2},45%,18%)'/>
-        <stop offset='100%' stop-color='hsl(${h3},35%,6%)'/>
-      </radialGradient>
-      <radialGradient id='g2' cx='75%' cy='75%' r='60%'>
-        <stop offset='0%' stop-color='hsl(${h3},60%,42%)' stop-opacity='0.55'/>
-        <stop offset='100%' stop-color='hsl(${h3},60%,42%)' stop-opacity='0'/>
-      </radialGradient>
-      <filter id='noise'>
-        <feTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='1' seed='${hashStr(seed) % 100}'/>
-        <feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.07 0'/>
-      </filter>
-    </defs>
-    <rect width='${w}' height='${h}' fill='url(#g1)'/>
-    <rect width='${w}' height='${h}' fill='url(#g2)'/>
-    <rect width='${w}' height='${h}' filter='url(#noise)'/>
-  </svg>`;
-  return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
-}
+// (Eliminado fakeMediaUrlForGeneration: la herramienta solo muestra media REAL
+//  generada por el backend; si una generación falla, falla visiblemente.)
 
 // ===========================================================================
 // Export
@@ -1066,5 +1032,4 @@ Object.assign(window, {
   NodeDock,
   GalleryPanel,
   GalleryButton,
-  fakeMediaUrlForGeneration,
 });

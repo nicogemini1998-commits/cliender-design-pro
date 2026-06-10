@@ -415,7 +415,7 @@ const SAMPLE_CLIENTS = [
       "shootingStyle": "Estudio controlado con fondo oscuro o gradiente violeta, iluminación lateral suave, close-ups de pantallas/herramientas, planos del equipo trabajando",
       "avoid": "Stock photos genéricas, colores pasteles, informalidad, imágenes sin datos reales"
     },
-    "projects": 12,
+    "projects": 0,
     "activeBoardId": null,
     "verticals": [
       "SALES",
@@ -431,7 +431,7 @@ const SAMPLE_CLIENTS = [
     "name": "Savia Formación (AZ Consultoría)",
     "initials": "SV",
     "industry": "Formación",
-    "tagline": "Personas que impulsan organizaciones",
+    "tagline": "Centro de formación especializado",
     "contact": {
       "name": "Vincent Piñón",
       "email": "vincent@cliender.com",
@@ -507,7 +507,7 @@ const SAMPLE_CLIENTS = [
       "shootingStyle": "Luz natural o rebotada suave, entornos de trabajo reales, personas en acción (no posadas), planos medios y close-ups de expresiones",
       "avoid": "Stock photos de oficinas vacías, sonrisas forzadas, lenguaje corporativo vacío"
     },
-    "projects": 8,
+    "projects": 0,
     "activeBoardId": null,
     "verticals": [
       "SALES",
@@ -566,20 +566,19 @@ const SAMPLE_CLIENTS = [
     ],
     "logo": {
       "url": "",
-      "description": "Logo 'β BETA FORMACIÓN': letra griega β vectorizada en rojo #E94560 como símbolo + wordmark en Poppins Bold. β tiene trazo redondeado grosor uniforme, 1.2u alto. Wordmark 0.7u alto. Fondo oscuro #1A1A2E variante principal.",
-      "shape": "β + wordmark. β: trazo redondeado, ratio 1:1.2. Wordmark a la derecha alineado centro.",
+      "description": "Logo oficial Beta Formación (análisis de píxeles del JPG original): wordmark 'BETA' en navy #2D2966 + 'FORMACIÓN' en lima #C9D332, con tagline manuscrita 'la emoción de aprender' en gris #878787. Centro fundado en 1986 (Torrent, Valencia).",
+      "shape": "Wordmark BETA (navy) + FORMACIÓN (lima) + tagline script gris debajo. Vectorial pendiente de solicitar al cliente.",
       "colors": {
-        "primary": "#E94560",
-        "secondary": "#0F3460",
-        "background": "#1A1A2E"
+        "primary": "#2D2966",
+        "secondary": "#C9D332",
+        "tagline": "#878787"
       },
-      "typography": "Poppins Bold para wordmark, β vectorial propio",
+      "typography": "Sans geométrica bold mayúsculas (wordmark) + script cursiva (tagline)",
       "variants": [
-        "rojo sobre oscuro (principal)",
-        "azul sobre blanco",
-        "β isotipo standalone"
+        "color sobre blanco (principal)",
+        "pendiente confirmar variantes con assets oficiales"
       ],
-      "usage": "No usar β sobre fondos rojos. Zona seguridad = anchura de la β."
+      "usage": "Colores reales del logo: navy #2D2966 + lima #C9D332. NO usar rojo ni fondos oscuros inventados."
     },
     "accent": "#C9D332",
     "bgGradient": "linear-gradient(135deg, #2D2966 0%, #C9D332 100%)",
@@ -603,7 +602,7 @@ const SAMPLE_CLIENTS = [
       "shootingStyle": "Entorno de estudio moderno, luz contrastada, planos dinámicos con movimiento, close-ups de pantallas con contenido del curso",
       "avoid": "Aulas aburridas, profesores estáticos, lenguaje académico sin vida"
     },
-    "projects": 5,
+    "projects": 0,
     "activeBoardId": null,
     "verticals": [
       "SALES",
@@ -698,7 +697,7 @@ const SAMPLE_CLIENTS = [
       "shootingStyle": "Fotografía con lente 85mm, DOF reducido, luz dorada de ventana o exterior crepuscular, composición formal con espacio negativo generoso",
       "avoid": "Informalidad visual, colores llamativos, lenguaje coloquial, planos demasiado dinámicos"
     },
-    "projects": 4,
+    "projects": 0,
     "activeBoardId": null,
     "verticals": [
       "SALES",
@@ -793,7 +792,7 @@ const SAMPLE_CLIENTS = [
       "shootingStyle": "Screen recordings de alta calidad, mockups en dispositivos reales (laptop/tablet), entornos de oficina corporativa limpia, planos de empleados usando la plataforma",
       "avoid": "Interfaces confusas, datos sin contexto, lenguaje excesivamente técnico"
     },
-    "projects": 6,
+    "projects": 0,
     "activeBoardId": null,
     "verticals": [
       "SALES",
@@ -879,7 +878,7 @@ const SAMPLE_CLIENTS = [
       "shootingStyle": "Luz natural o cálida de estudio, close-ups de manos y rostros en tratamiento, ambientación real del local sin stock genérico",
       "avoid": "Imágenes de stock genéricas, colores fríos azulados, lenguaje técnico médico, promesas exageradas"
     },
-    "projects": 3,
+    "projects": 0,
     "activeBoardId": null,
     "verticals": [
       "MEDIA"
@@ -935,20 +934,17 @@ const SAMPLE_CLIENTS = [
     ],
     "logo": {
       "url": "",
-      "description": "Logo Grupo MVR: wordmark en rojo carmesí #C0001E sobre fondo oscuro o blanco. Tipografía Inter Bold. Ver brand assets en grupomvr.com.",
-      "shape": "Wordmark horizontal GRUPO MVR.",
+      "description": "Logo Grupo MVR / Academia Telde: rojo carmesí #C0001E confirmado en la web real (academiatelde.com). Tipografía web: Open Sans. Logo vectorial y hex exactos de las submarcas pendientes de los brand assets del cliente.",
+      "shape": "Wordmark. Ver assets oficiales del cliente (pendientes).",
       "colors": {
         "primary": "#C0001E",
-        "background": "#1A0000",
-        "light": "#E53030"
+        "secondary": "#4F73B8"
       },
-      "typography": "Inter Bold",
+      "typography": "Open Sans (web real)",
       "variants": [
-        "rojo sobre oscuro (principal)",
-        "rojo sobre blanco",
-        "blanco sobre rojo"
+        "pendiente confirmar con assets oficiales"
       ],
-      "usage": "Ver brand assets oficiales en grupomvr.com."
+      "usage": "Web real: academiatelde.com. Rojo carmesí #C0001E confirmado; solicitar logo vectorial al cliente."
     },
     "accent": "#C0001E",
     "bgGradient": "linear-gradient(135deg, #2C3E50 0%, #C0001E 100%)",
@@ -968,7 +964,7 @@ const SAMPLE_CLIENTS = [
       "shootingStyle": "Entornos corporativos canarios, luz natural, planos de equipo y dirección, datos de impacto visibles",
       "avoid": "Informalidad, colores fuera de brand, lenguaje populista"
     },
-    "projects": 7,
+    "projects": 0,
     "activeBoardId": null,
     "verticals": [
       "SALES",
@@ -1056,7 +1052,7 @@ const SAMPLE_CLIENTS = [
       "shootingStyle": "Luz natural en espacios abiertos, planos de grupos y acompañamiento, close-ups de expresiones auténticas, entornos formativos reales",
       "avoid": "Frialdad corporativa, burocracia visual, paleta verde (no es de marca)"
     },
-    "projects": 5,
+    "projects": 0,
     "activeBoardId": null,
     "verticals": [
       "SALES",
@@ -1114,20 +1110,18 @@ const SAMPLE_CLIENTS = [
     ],
     "logo": {
       "url": "",
-      "description": "Barra de progreso parcialmente rellena (50-70%, nunca 100%) como símbolo en naranja→amarillo degradado (#F7931E→#FDB913), radius 4pt. Wordmark 'INPROGRESS' en Poppins Bold caps + 'ESCUELA' en Poppins Regular tracking alto debajo. Concepto: siempre en progreso.",
-      "shape": "Barra 180x18pt. Relleno degradado H. Wordmark proporcional debajo o al lado.",
+      "description": "Logo Inprogress Escuela Técnica Profesional — colores reales del CSS de inprogressformacion.com: naranja #F49313 + oro #B49313 + gris #727271. Tipografías web reales: Anton (display) + Montserrat (texto). Logo vectorial pendiente de solicitar al cliente.",
+      "shape": "Pendiente de brand assets oficiales.",
       "colors": {
-        "primary": "#F7931E",
-        "gradient": "#F7931E a #FDB913",
-        "background": "#1A1A2E"
+        "primary": "#F49313",
+        "secondary": "#B49313",
+        "gray": "#727271"
       },
-      "typography": "Poppins Bold (INPROGRESS) + Poppins Regular tracking alto (ESCUELA)",
+      "typography": "Anton (display) + Montserrat (texto) — confirmadas en la web",
       "variants": [
-        "barra+wordmark horizontal",
-        "barra encima wordmark",
-        "solo barra progreso isotipo"
+        "pendiente confirmar con assets oficiales"
       ],
-      "usage": "La barra nunca al 100% — siempre en progreso. Relleno mínimo 40%. No usar sin barra."
+      "usage": "Sedes reales: Palma + Port d'Alcúdia (Baleares — SOIB, no SEPE). Solicitar logo vectorial al cliente."
     },
     "accent": "#F49313",
     "bgGradient": "linear-gradient(135deg, #333333 0%, #F49313 100%)",
@@ -1152,7 +1146,7 @@ const SAMPLE_CLIENTS = [
       "shootingStyle": "Talleres con luz de trabajo real, close-ups de manos sobre herramientas/teclados, planos de grupos colaborando, pantallas con proyectos reales visibles",
       "avoid": "Academicismo visual, aulas vacías, promesas sin datos de inserción"
     },
-    "projects": 4,
+    "projects": 0,
     "activeBoardId": null,
     "verticals": [
       "SALES",
@@ -1209,21 +1203,18 @@ const SAMPLE_CLIENTS = [
     ],
     "logo": {
       "url": "",
-      "description": "Escudo hexagonal (base apuntada) con contorno dorado #DAA520 2pt, interior transparente/negro. Letra 'S' en Libre Baskerville Italic centrada dentro, dorado. Wordmark 'SAFE ABOGADOS': 'SAFE' en Libre Baskerville Bold dorado + 'ABOGADOS' en Source Serif Regular #F5F5DC tamaño 0.6x. Sin relleno sólido en el escudo.",
-      "shape": "Escudo hexagonal 1:1.3, vértice inferior agudo. S cap-height 60% del alto. Wordmark a la derecha alineado centro.",
+      "description": "Logo Safe Abogados — paleta real del CSS de safeabogados.com: azul pizarra #36475a + tierra dorada #a7987c + acento coral #ff4c40. Tipografía real: Montserrat self-hosted (400/500/600/700). Logo vectorial pendiente de solicitar al despacho.",
+      "shape": "Pendiente de brand assets oficiales.",
       "colors": {
-        "primary": "#DAA520",
-        "secondary": "#B8860B",
-        "background": "#0D1117",
-        "cream": "#F5F5DC"
+        "primary": "#36475a",
+        "secondary": "#a7987c",
+        "accent": "#ff4c40"
       },
-      "typography": "Libre Baskerville Italic (S + SAFE) + Source Serif Regular (ABOGADOS)",
+      "typography": "Montserrat (confirmada en la web, self-hosted)",
       "variants": [
-        "escudo+wordmark horizontal",
-        "solo escudo dorado",
-        "crema sobre dark"
+        "pendiente confirmar con assets oficiales"
       ],
-      "usage": "Escudo nunca relleno sólido. S siempre italic. Mínimo escudo 24px."
+      "usage": "Sede real: C/ Miguel Íscar 9, Valladolid. RRSS activas: Facebook, LinkedIn, X, YouTube (sin Instagram). Solicitar logo vectorial."
     },
     "accent": "#a7987c",
     "bgGradient": "linear-gradient(135deg, #2C3848 0%, #36475a 100%)",
@@ -1248,7 +1239,7 @@ const SAMPLE_CLIENTS = [
       "shootingStyle": "Despacho real con libros de derecho al fondo, luz lateral cálida de lámpara, plano medio del abogado hablando a cámara, detalle de documentos firmados",
       "avoid": "Alarmismo, promesas de resultado garantizado, lenguaje informal o coloquial"
     },
-    "projects": 3,
+    "projects": 0,
     "activeBoardId": null,
     "verticals": [
       "SALES"
@@ -1339,7 +1330,7 @@ const SAMPLE_CLIENTS = [
       "shootingStyle": "Golden hour, gran angular del entorno, close-ups de detalles de la estancia, planos del mar y la costa gallega",
       "avoid": "Turismo masivo, precios como argumento, imágenes de multitudes, estética low-cost"
     },
-    "projects": 6,
+    "projects": 0,
     "activeBoardId": null,
     "verticals": [
       "SALES",
@@ -1353,7 +1344,7 @@ const SAMPLE_CLIENTS = [
     "name": "Oposita-XD",
     "initials": "OX",
     "industry": "Formación / Oposiciones",
-    "tagline": "Aprueba con método",
+    "tagline": "Formación para oposiciones y cursos subvencionados",
     "contact": {
       "name": "Vincent Piñón",
       "email": "vincent@cliender.com",
@@ -1397,20 +1388,17 @@ const SAMPLE_CLIENTS = [
     ],
     "logo": {
       "url": "",
-      "description": "Checkmark ✓ vectorial púrpura #7C3AED, trazo 4pt, esquinas redondeadas, altura 1.3u. Wordmark: 'OPOSITA' en Inter Black caps + '-XD' en Inter ExtraLight lila #A78BFA. Contraste bold/light refuerza método+diversión. ✓ standalone como badge de logro.",
-      "shape": "✓: ángulo 45°/30°, trazo radius 3pt. OPOSITA caps bold. -XD mismo baseline lighter. Ratio ✓/texto 1.3:4.5.",
+      "description": "Logo Oposita-XD — colores reales de oposita-xd.net: naranja #F58148 + azul #188BF6. Tipografías web reales: Space Grotesk + Roboto. Manual de marca existe solo en PDFs del cliente; vectoriales pendientes de confirmar.",
+      "shape": "Pendiente de brand assets oficiales (manual en PDF).",
       "colors": {
-        "primary": "#7C3AED",
-        "light": "#A78BFA",
-        "background": "#1E1E2E"
+        "primary": "#F58148",
+        "secondary": "#188BF6"
       },
-      "typography": "Inter Black (OPOSITA) + Inter ExtraLight (-XD)",
+      "typography": "Space Grotesk (display) + Roboto (texto) — confirmadas en la web",
       "variants": [
-        "checkmark+wordmark horizontal",
-        "checkmark encima wordmark",
-        "solo ✓ badge"
+        "pendiente confirmar con manual de marca (PDF)"
       ],
-      "usage": "-XD siempre en lighter weight. ✓ nunca relleno sólido — siempre trazo. Mínimo 20px."
+      "usage": "Web real: oposita-xd.net (solo /oposiciones activo). Naranja #F58148 confirmado en formulario real."
     },
     "accent": "#F58148",
     "bgGradient": "linear-gradient(135deg, #1A1A1A 0%, #F58148 100%)",
@@ -1435,7 +1423,7 @@ const SAMPLE_CLIENTS = [
       "shootingStyle": "Mesa de estudio ordenada con apuntes y tablet, planos de manos escribiendo o subrayando, entornos de estudio modernos, close-ups de apps de seguimiento de progreso",
       "avoid": "Ansiedad y agobio visual, promesas de plaza garantizada, aulas masificadas"
     },
-    "projects": 5,
+    "projects": 0,
     "activeBoardId": null,
     "verticals": [
       "SALES",
@@ -1522,7 +1510,7 @@ const SAMPLE_CLIENTS = [
       "shootingStyle": "Personas en tarea real, luz cálida o de estudio según tipología, fondo oscuro que case con paleta, sin poses de stock forzadas",
       "avoid": "AI-purple/pink, lenguaje de 'curso' para ECIA, 'gratis', aulas infantiles, stock genérico"
     },
-    "projects": 4,
+    "projects": 0,
     "activeBoardId": null,
     "verticals": [
       "MEDIA"
