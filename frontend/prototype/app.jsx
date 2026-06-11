@@ -1567,7 +1567,8 @@ function App() {
       const raw = localStorage.getItem('cdp-moodboards-v1');
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length) return parsed;
+        // Filtra el scratch efímero del modo Supercomputer (temp-*): nunca debe vivir en la lista.
+        if (Array.isArray(parsed) && parsed.length) return parsed.filter(m => m && m.id && !String(m.id).startsWith('temp-'));
       }
     } catch (e) { console.warn('[moodboards] localStorage parse failed', e); }
     return [];
@@ -1590,6 +1591,11 @@ function App() {
   // El upsert es debounced por id en __moodboards (800ms), y solo se dispara si la
   // firma del mb cambió desde la última vez (no re-envia lo que ya estaba sincronizado).
   const prevMbSigsRef = React.useRef(new Map());
+  const _mbFirstSaveRef = React.useRef(true);
+  // Ids vistos alguna vez en el server (o ya presentes en el cache al arrancar). Si uno
+  // de estos desaparece del remote → fue borrado server-side → NO se resucita (regla:
+  // "lo que borro no vuelve"). Distingue borrado-en-server de creación-local-en-vuelo.
+  const _mbSeenRef = React.useRef(new Set((_initialMoodboards || []).map(m => m && m.id).filter(Boolean)));
   const _mbSig = (mb) => {
     if (!mb) return '';
     try {
@@ -1618,12 +1624,14 @@ function App() {
 
     if (!window.__moodboards) return;
     const currentSigs = new Map();
+    for (const mb of (moodboards || [])) currentSigs.set(mb.id, _mbSig(mb));
+    // Primer render: el estado viene del cache localStorage. NO subir nada todavía — si en
+    // otra sesión se borró un moodboard del server, re-subirlo aquí lo resucitaría. Solo
+    // registramos firmas; el poll reconcilia con el server (autoridad de borrados).
+    if (_mbFirstSaveRef.current) { _mbFirstSaveRef.current = false; prevMbSigsRef.current = currentSigs; return; }
     for (const mb of (moodboards || [])) {
-      const s = _mbSig(mb);
-      currentSigs.set(mb.id, s);
-      if (prevMbSigsRef.current.get(mb.id) !== s) {
-        window.__moodboards.upsert(mb);
-      }
+      if (mb.id && String(mb.id).startsWith('temp-')) continue; // scratch efímero: jamás se persiste
+      if (prevMbSigsRef.current.get(mb.id) !== currentSigs.get(mb.id)) window.__moodboards.upsert(mb);
     }
     for (const id of prevMbSigsRef.current.keys()) {
       if (!currentSigs.has(id)) { _mbTombstone(id); window.__moodboards.remove(id); }
@@ -1645,7 +1653,9 @@ function App() {
       // Estrategia: si el contenido coincide (sig sin updatedAt) → quedarse con local.
       // Si difiere, gana el de updatedAt mayor. Si ninguno tiene timestamp, gana LOCAL
       // (asumimos que es una edición en vuelo que todavía no se ha subido).
+      const remoteIds = new Set(remote.map(r => r.id));
       for (const rmt of remote) {
+        _mbSeenRef.current.add(rmt.id); // el server lo tiene → conocido
         // Si el id está en tombstones, fue borrado a propósito: ignorar y limpiar server.
         if (mbTombstonesRef.current.has(rmt.id)) { window.__moodboards.remove(rmt.id); continue; }
         const loc = localById.get(rmt.id);
@@ -1656,9 +1666,16 @@ function App() {
         if (tr === 0 && tl === 0) { merged.push(loc); continue; }
         merged.push(tr >= tl ? rmt : loc);
       }
-      // Locales que el server aún no tiene (debounce en vuelo)
+      // Locales que el server NO tiene:
+      //  · temp-* → scratch efímero del Supercomputer, nunca en la lista.
+      //  · id ya conocido (visto en server o presente al arrancar) y ahora ausente → fue
+      //    BORRADO server-side → se descarta + tombstone (no revive). Regla "lo borrado no vuelve".
+      //  · resto → creación local en vuelo (aún sin subir, debounce) → se mantiene.
       for (const [id, loc] of localById) {
-        if (!remote.find(r => r.id === id)) merged.push(loc);
+        if (remoteIds.has(id)) continue;
+        if (String(id).startsWith('temp-')) continue;
+        if (_mbSeenRef.current.has(id)) { _mbTombstone(id); window.__moodboards.remove(id); continue; }
+        merged.push(loc);
       }
       // Evitar dispatch si nada cambió (evita render-loop con el save effect)
       try {

@@ -242,6 +242,13 @@ async def _get_mb(moodboard_id: str) -> Moodboard | None:
 
 async def _save_mb(mb: Moodboard) -> None:
     _MOODBOARDS[mb.id] = mb
+    # Los moodboards EFÍMEROS (id `temp-*`) son scratch del análisis de referencias
+    # del modo Supercomputer: se auditan SOLO para devolver el manifest y NUNCA deben
+    # persistirse en Supabase. Si se guardaran, cada subida de referencias dejaría un
+    # "Supercomputer refs" permanente acumulándose en la lista de moodboards. El polling
+    # del audit (GET /moodboards/{id}) sigue funcionando vía _MOODBOARDS in-memory.
+    if mb.id.startswith("temp-"):
+        return
     if _sb_available():
         await _sb_upsert(mb)
 
