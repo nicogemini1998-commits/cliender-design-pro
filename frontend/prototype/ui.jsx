@@ -436,6 +436,11 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
   // Texto de subtítulo POR ESCENA (editable en el editor) — keyed por id de asset.
   // Se prefillea con el prompt del asset al abrir el editor; el usuario lo edita.
   const [sceneTexts, setSceneTexts] = React.useState({});
+  // ── Director de Edición IA — el usuario describe el montaje y Claude lo configura ──
+  const [editPrompt, setEditPrompt] = React.useState("");
+  const [aiPlanning, setAiPlanning] = React.useState(false);
+  const [planNotes, setPlanNotes] = React.useState("");
+  const [scenePlan, setScenePlan] = React.useState({}); // id -> {transition,kenburns,duration_s} del plan IA
   // Swatches por look para las tarjetas del editor
   const LOOK_SWATCH = {
     cine: ["#0b4a5c", "#ffc7a0", "#1a1a22"],
@@ -493,9 +498,10 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
         url: it.url,
         kind: it.kind === "video" ? "video" : "image",
         muted: it.kind === "video" ? !origAudio : true,
-        duration_s: parseFloat(String(it.duration || "")) || (it.kind === "video" ? 5 : 2.5),
+        duration_s: (scenePlan[it.id] && scenePlan[it.id].duration_s) || parseFloat(String(it.duration || "")) || (it.kind === "video" ? 5 : 2.5),
         caption: subs ? String(sceneTexts[it.id] != null ? sceneTexts[it.id] : (it.prompt || "")).trim().slice(0, 120) : "",
-        transition,
+        transition: (scenePlan[it.id] && scenePlan[it.id].transition) || transition,
+        kenburns: (scenePlan[it.id] && scenePlan[it.id].kenburns) || undefined,
       }));
     if (scenes.length === 0) return;
     setRendering(true); setResult(null);
@@ -651,7 +657,7 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
         {/* ── Editor de película — modal cinematográfico ── */}
         {editorOpen && (() => {
           const selItems = selected.map((id) => items.find((i) => i.id === id)).filter(Boolean);
-          const durOf = (it) => parseFloat(String(it.duration || "")) || (it.kind === "video" ? 5 : 2.5);
+          const durOf = (it) => (scenePlan[it.id] && scenePlan[it.id].duration_s) || parseFloat(String(it.duration || "")) || (it.kind === "video" ? 5 : 2.5);
           const totalS = selItems.reduce((a, it) => a + durOf(it), 0);
           const move = (idx, dir) => {
             setSelected((prev) => {
@@ -665,6 +671,50 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
           const LBL = { fontSize: 10, opacity: 0.65, textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 8 };
           const DSC = { fontSize: 11, opacity: 0.6, lineHeight: 1.4, marginTop: 7 };
           const SBTN = { flex: 1, background: "none", border: "none", color: "#cfcfdd", fontSize: 10, padding: "4px 0", cursor: "pointer" };
+          // Dirección IA: envía el prompt + escenas a /chat/edit-plan y aplica el plan al editor
+          const applyAIPlan = async () => {
+            const p = editPrompt.trim();
+            if (!p || aiPlanning || selItems.length === 0) return;
+            setAiPlanning(true); setPlanNotes("");
+            try {
+              const r = await fetch(`${API}/chat/edit-plan`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  prompt: p,
+                  scenes: selItems.map((it) => ({
+                    id: it.id,
+                    kind: it.kind === "video" ? "video" : "image",
+                    duration_s: durOf(it),
+                    text: String(sceneTexts[it.id] != null ? sceneTexts[it.id] : (it.prompt || "")).slice(0, 100),
+                  })),
+                }),
+              });
+              const d = await r.json();
+              if (!r.ok || !d.ok || !d.plan) throw new Error(d.error || d.detail || `HTTP ${r.status}`);
+              const plan = d.plan;
+              if (Array.isArray(plan.order) && plan.order.length) setSelected(plan.order);
+              const byId = {};
+              (plan.scenes || []).forEach((s) => {
+                if (s && s.id) byId[s.id] = { transition: s.transition || null, kenburns: s.kenburns || null, duration_s: s.duration_s || null };
+              });
+              setScenePlan(byId);
+              const caps = {};
+              (plan.scenes || []).forEach((s) => { if (s && s.id && s.caption) caps[s.id] = s.caption; });
+              if (Object.keys(caps).length) { setSceneTexts((prev) => ({ ...prev, ...caps })); setSubs(true); }
+              if (plan.look) setLook(plan.look);
+              if (plan.default_transition) setTransition(plan.default_transition);
+              if (plan.letterbox != null) setLetterbox(!!plan.letterbox);
+              if (plan.grain != null) setGrain(!!plan.grain);
+              if (plan.sfx != null) setSfx(!!plan.sfx);
+              if (plan.autosubs != null) setSubs(!!plan.autosubs);
+              if (plan.branding != null) setBranding(!!plan.branding);
+              setPlanNotes(plan.notes || "Plan de montaje aplicado — revisa la secuencia y renderiza.");
+              window.__notify && window.__notify({ kind: "success", icon: "🎬", title: "Dirección aplicada", body: "El plan de montaje está cargado en el editor" });
+            } catch (e) {
+              setPlanNotes("");
+              window.__notify && window.__notify({ kind: "error", icon: "⚠", title: "Dirección IA falló", body: String(e && e.message ? e.message : e) });
+            } finally { setAiPlanning(false); }
+          };
           return (
             <div className="form-popup-backdrop" style={{ zIndex: 400 }} onClick={() => !rendering && setEditorOpen(false)}>
               <div className="form-popup" onClick={(e) => e.stopPropagation()}
@@ -682,6 +732,26 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
 
                 <div style={{ padding: "16px 24px 22px", display: "flex", flexDirection: "column", gap: 18 }}>
 
+                  {/* ── Dirección de edición IA ── */}
+                  <div>
+                    <div className="mono" style={LBL}>🎬 Dirección de edición — describe el montaje y la IA configura todo</div>
+                    <textarea value={editPrompt} onChange={(e) => setEditPrompt(e.target.value)} rows={3}
+                      placeholder={"Ej: estilo tráiler: abre con el plano más potente, ritmo rápido (1.5s por plano) con cortes secos, un film burn al cambiar de bloque, look noir, y el plano final lento con zoom out…"}
+                      style={{ width: "100%", padding: "10px 12px", fontSize: 12.5, lineHeight: 1.5, borderRadius: 10, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)", color: "inherit", outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
+                      <button className="gallery-assemble-go" disabled={!editPrompt.trim() || aiPlanning} onClick={applyAIPlan}
+                        style={{ background: "rgba(124,58,237,0.2)", borderColor: "rgba(167,139,250,0.5)", fontWeight: 600 }}>
+                        {aiPlanning ? "✦ Dirigiendo…" : "✦ Aplicar dirección IA"}
+                      </button>
+                      <span style={{ fontSize: 10.5, opacity: 0.55, lineHeight: 1.35 }}>Decide orden, transición y cámara por escena, look y ritmo — todo editable después.</span>
+                    </div>
+                    {planNotes && (
+                      <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 10, background: "rgba(124,58,237,0.08)", border: "1px solid rgba(167,139,250,0.25)", fontSize: 11.5, lineHeight: 1.45 }}>
+                        🎬 {planNotes}
+                      </div>
+                    )}
+                  </div>
+
                   <div>
                     <div className="mono" style={LBL}>Secuencia — orden de aparición</div>
                     <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 6 }}>
@@ -691,6 +761,9 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
                             ? <video src={it.url} muted style={{ width: 96, height: 128, objectFit: "cover", display: "block" }} />
                             : <img src={it.url} alt="" style={{ width: 96, height: 128, objectFit: "cover", display: "block" }} />}
                           <div style={{ position: "absolute", top: 5, left: 5, width: 18, height: 18, borderRadius: 6, background: "rgba(124,58,237,0.92)", color: "#fff", fontSize: 10.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{idx + 1}</div>
+                          {scenePlan[it.id] && scenePlan[it.id].transition && (
+                            <div className="mono" style={{ position: "absolute", top: 5, right: 5, fontSize: 8, background: "rgba(124,58,237,0.85)", color: "#fff", padding: "1px 5px", borderRadius: 4 }} title={`Transición del plan IA: ${scenePlan[it.id].transition}`}>{scenePlan[it.id].transition}</div>
+                          )}
                           <div className="mono" style={{ position: "absolute", bottom: 26, right: 5, fontSize: 9, background: "rgba(0,0,0,0.6)", padding: "1px 5px", borderRadius: 4, color: "#fff" }}>{durOf(it)}s</div>
                           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, display: "flex", background: "rgba(8,8,13,0.85)" }}>
                             <button onClick={() => move(idx, -1)} disabled={idx === 0} style={{ ...SBTN, opacity: idx === 0 ? 0.3 : 1 }} title="Mover antes">◀</button>

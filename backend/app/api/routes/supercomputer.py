@@ -610,3 +610,149 @@ async def storyboard_stream(req: StoryboardRequest):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
     )
+
+
+
+# ---------------------------------------------------------------------------
+# POST /chat/edit-plan — Director de Edición IA
+# El usuario describe el montaje en lenguaje natural y Claude lo convierte en
+# un plan estructurado (orden, transición/cámara por escena, look, ritmo) que
+# la UI aplica al Editor de película. Todo validado contra catálogos cerrados.
+# ---------------------------------------------------------------------------
+
+_EDIT_TRANSITIONS = ["dissolve", "lumafade", "filmburn", "fade", "blurwipe", "slide", "slideup", "zoom", "whip", "wipe", "glitch", "cut"]
+_EDIT_LOOKS = ["cine", "golden", "noir", "vintage", "clean", "none"]
+_EDIT_KENBURNS = ["zoomin", "zoomout", "panleft", "panright", "diagonal"]
+
+_EDIT_DIRECTOR_SYSTEM = """Eres un EDITOR DE CINE senior (montador) con 20 años cortando tráilers, anuncios y documentales.
+Tu trabajo: convertir las instrucciones del usuario en un PLAN DE MONTAJE para su película vertical 1080x1920.
+
+CATÁLOGOS DISPONIBLES (usa SOLO estos ids):
+
+TRANSICIONES (cómo ENTRA cada escena sobre la anterior):
+- dissolve: crossfade suave, el estándar profesional elegante
+- lumafade: fundido por luminancia, cine documental
+- filmburn: flash cálido de película quemada, orgánico y con impacto
+- fade: fundido a negro, marca cambio de bloque/tiempo
+- blurwipe: emerge desde desenfoque, premium moda/belleza
+- slide / slideup: empuje lateral / vertical, dinámico tipo stories
+- zoom: golpe de zoom con blur, energético viral
+- whip: latigazo de cámara con motion blur, vlog enérgico
+- wipe: cortina editorial limpia
+- glitch: distorsión RGB, tech/urbano
+- cut: corte seco, el 80% del montaje de cine real
+
+LOOKS de color: cine (teal&orange blockbuster) · golden (atardecer cálido) · noir (B&N dramático) · vintage (Kodak analógico) · clean (anuncio pulido) · none
+KEN BURNS (solo en imágenes): zoomin · zoomout · panleft · panright · diagonal
+
+REGLAS DE EDITOR PROFESIONAL:
+1. Ritmo: planos rápidos 1.5-2.5s; payoff/cierre 3-5s. Patrón 3+1 (tres cortes rápidos, uno largo). La uniformidad delata al amateur.
+2. El gancho va PRIMERO: la escena más potente abre la película.
+3. cut es tu transición por defecto entre planos del mismo bloque; reserva las transiciones vistosas para cambios de bloque o momentos clave.
+4. Alterna kenburns entre escenas consecutivas (nunca dos zoomin seguidos).
+5. Si el usuario pide algo del catálogo por descripción ("latigazo", "quemado"), mapea al id correcto.
+6. duration_s solo si el ritmo lo requiere (rango 0.8-12). Respeta la duración natural de los VÍDEOS salvo que pidan recorte explícito.
+7. captions: SOLO si el usuario pide rótulos/textos; frases de 3-6 palabras, potentes.
+
+RESPONDE SOLO con JSON válido, sin markdown ni explicación:
+{
+  "order": ["id1", "id2", ...],
+  "default_transition": "cut",
+  "look": "cine",
+  "letterbox": true, "grain": true, "sfx": true, "autosubs": false, "branding": false,
+  "scenes": [{"id": "id1", "transition": "filmburn", "kenburns": "zoomin", "duration_s": 2.0, "caption": ""}],
+  "notes": "resumen en 1-2 frases de la decisión de montaje, en español"
+}
+Omite (o pon null) cualquier campo que no quieras tocar. order DEBE incluir todos los ids."""
+
+
+class EditPlanScene(BaseModel):
+    id: str
+    kind: str = "image"                    # "image" | "video"
+    duration_s: float | None = None
+    text: str | None = None                # descripción/subtítulo del asset (contexto)
+
+
+class EditPlanRequest(BaseModel):
+    prompt: str
+    scenes: list[EditPlanScene]
+
+
+class EditPlanResponse(BaseModel):
+    ok: bool
+    plan: dict[str, Any] | None = None
+    error: str | None = None
+
+
+@router.post("/edit-plan", response_model=EditPlanResponse)
+async def edit_plan(req: EditPlanRequest) -> EditPlanResponse:
+    """Convierte instrucciones de edición en lenguaje natural en un plan de montaje."""
+    from app.services.claude_client import get_claude
+
+    if not req.prompt.strip() or not req.scenes:
+        return EditPlanResponse(ok=False, error="prompt o escenas vacíos")
+
+    scene_lines = "\n".join(
+        f"- id={s.id} | tipo={s.kind} | dur_actual={s.duration_s or (5.0 if s.kind == 'video' else 2.5)}s | contenido: {(s.text or 'sin descripción')[:90]}"
+        for s in req.scenes
+    )
+    user = (
+        f"INSTRUCCIONES DEL USUARIO:\n{req.prompt.strip()[:1500]}\n\n"
+        f"ESCENAS DISPONIBLES (en su orden actual):\n{scene_lines}\n\n"
+        "Devuelve SOLO el JSON del plan."
+    )
+    try:
+        raw = await get_claude().reason_json(system=_EDIT_DIRECTOR_SYSTEM, user=user)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("edit_plan claude error: %s", exc)
+        return EditPlanResponse(ok=False, error=f"Claude no respondió: {str(exc)[:160]}")
+
+    # ── Validación estricta contra catálogos ──
+    ids = [s.id for s in req.scenes]
+    idset = set(ids)
+    order_raw = [str(i) for i in (raw.get("order") or []) if str(i) in idset]
+    seen: set[str] = set()
+    order = [i for i in order_raw if not (i in seen or seen.add(i))]
+    order += [i for i in ids if i not in seen]  # garantizar que están todas
+
+    by_id = {str(x.get("id")): x for x in (raw.get("scenes") or []) if isinstance(x, dict)}
+    scenes_out: list[dict[str, Any]] = []
+    for sid in order:
+        x = by_id.get(sid, {})
+        tr = str(x.get("transition") or "").lower()
+        kb = str(x.get("kenburns") or "").lower()
+        dur = x.get("duration_s")
+        try:
+            dur = float(dur) if dur is not None else None
+        except (TypeError, ValueError):
+            dur = None
+        if dur is not None:
+            dur = max(0.8, min(12.0, dur))
+        cap = str(x.get("caption") or "").strip()[:120]
+        scenes_out.append({
+            "id": sid,
+            "transition": tr if tr in _EDIT_TRANSITIONS else None,
+            "kenburns": kb if kb in _EDIT_KENBURNS else None,
+            "duration_s": dur,
+            "caption": cap or None,
+        })
+
+    look = str(raw.get("look") or "").lower()
+    dtr = str(raw.get("default_transition") or "").lower()
+
+    def _b(key: str) -> bool | None:
+        return bool(raw[key]) if key in raw and raw[key] is not None else None
+
+    plan = {
+        "order": order,
+        "scenes": scenes_out,
+        "look": look if look in _EDIT_LOOKS else None,
+        "default_transition": dtr if dtr in _EDIT_TRANSITIONS else None,
+        "letterbox": _b("letterbox"),
+        "grain": _b("grain"),
+        "sfx": _b("sfx"),
+        "autosubs": _b("autosubs"),
+        "branding": _b("branding"),
+        "notes": str(raw.get("notes") or "")[:400],
+    }
+    return EditPlanResponse(ok=True, plan=plan)
