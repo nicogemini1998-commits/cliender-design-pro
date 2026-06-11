@@ -441,6 +441,30 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
   const [aiPlanning, setAiPlanning] = React.useState(false);
   const [planNotes, setPlanNotes] = React.useState("");
   const [scenePlan, setScenePlan] = React.useState({}); // id -> {transition,kenburns,duration_s} del plan IA
+  // ── Duración REAL de los vídeos (metadata del navegador, sin descargar el archivo) ──
+  // FIX crítico: la galería no guarda la duración real → los vídeos caían al default
+  // de 5s y la película salía mucho más corta de lo esperado.
+  const [mediaDur, setMediaDur] = React.useState({}); // id -> segundos reales
+  React.useEffect(() => {
+    selected.forEach((id) => {
+      const it = items.find((i) => i.id === id);
+      if (!it || it.kind !== "video" || mediaDur[id] != null) return;
+      try {
+        const v = document.createElement("video");
+        v.preload = "metadata";
+        v.muted = true;
+        v.onloadedmetadata = () => {
+          const d = Number(v.duration);
+          if (isFinite(d) && d > 0) setMediaDur((p) => (p[id] != null ? p : { ...p, [id]: Math.round(d * 10) / 10 }));
+          v.removeAttribute("src");
+        };
+        v.onerror = () => {};
+        v.src = it.url;
+      } catch (e) { /* metadata no disponible — cae al fallback */ }
+    });
+  }, [selected, items, mediaDur]);
+  // Duración efectiva de una escena: plan IA > duración REAL del vídeo > campo guardado > default
+  const durOfItem = (it) => (scenePlan[it.id] && scenePlan[it.id].duration_s) || mediaDur[it.id] || parseFloat(String(it.duration || "")) || (it.kind === "video" ? 5 : 2.5);
   // Swatches por look para las tarjetas del editor
   const LOOK_SWATCH = {
     cine: ["#0b4a5c", "#ffc7a0", "#1a1a22"],
@@ -498,7 +522,7 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
         url: it.url,
         kind: it.kind === "video" ? "video" : "image",
         muted: it.kind === "video" ? !origAudio : true,
-        duration_s: (scenePlan[it.id] && scenePlan[it.id].duration_s) || parseFloat(String(it.duration || "")) || (it.kind === "video" ? 5 : 2.5),
+        duration_s: durOfItem(it),
         caption: subs ? String(sceneTexts[it.id] != null ? sceneTexts[it.id] : (it.prompt || "")).trim().slice(0, 120) : "",
         transition: (scenePlan[it.id] && scenePlan[it.id].transition) || transition,
         kenburns: (scenePlan[it.id] && scenePlan[it.id].kenburns) || undefined,
@@ -611,31 +635,39 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
           <button className="super-close" onClick={onClose}>✕</button>
         </div>
 
-        {/* ── Barra de selección — modo normal ── */}
-        {selecting && !batchMode && (
-          <div className="gallery-assemble-bar">
-            <span className="mono">
-              {selected.length} escena{selected.length === 1 ? "" : "s"} · toca en orden — ese será el montaje
-            </span>
-            <div style={{ display: "flex", gap: 6 }}>
+        {/* ── Dock flotante de Edit video — toda la navegación del modo selección ── */}
+        {selecting && !batchMode && (() => {
+          const selItemsDock = selected.map((id) => items.find((i) => i.id === id)).filter(Boolean);
+          const totalSel = selItemsDock.reduce((a, it) => a + durOfItem(it), 0);
+          const DOCKBTN = { display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 12, fontSize: 12.5, fontWeight: 600, cursor: "pointer", border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "inherit", transition: "background .15s, border .15s, transform .1s" };
+          const hover = (e, on) => { e.currentTarget.style.background = on ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)"; e.currentTarget.style.transform = on ? "translateY(-1px)" : "none"; };
+          return (
+            <div style={{ position: "fixed", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 350,
+              display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 18, maxWidth: "94vw", flexWrap: "wrap", justifyContent: "center",
+              background: "rgba(10,10,18,0.85)", backdropFilter: "blur(20px) saturate(1.3)", WebkitBackdropFilter: "blur(20px) saturate(1.3)",
+              border: "1px solid rgba(167,139,250,0.3)", boxShadow: "0 18px 50px -12px rgba(0,0,0,0.75), inset 0 0 0 1px rgba(255,255,255,0.04)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingRight: 12, borderRight: "1px solid rgba(255,255,255,0.1)" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>{selected.length} escena{selected.length === 1 ? "" : "s"} · ~{Math.round(totalSel)}s</span>
+                <span className="mono" style={{ fontSize: 9.5, opacity: 0.55, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>toca los assets en orden de aparición</span>
+              </div>
               {selectedVideos.length > 0 && (
-                <button className="gallery-assemble-go vedit-batch-trigger"
-                  onClick={() => setBatchMode("config")}>
-                  💬 Subtítulos ({selectedVideos.length})
+                <button style={DOCKBTN} onMouseEnter={(e) => hover(e, true)} onMouseLeave={(e) => hover(e, false)}
+                  onClick={() => setBatchMode("config")} title="Quemar subtítulos Whisper en los vídeos seleccionados">
+                  💬 <span>Subtítulos</span>
                 </button>
               )}
               {selectedVideoItems.length >= 2 && (
-                <button className="gallery-assemble-go"
-                  style={{ background: "rgba(124,58,237,0.15)", borderColor: "rgba(124,58,237,0.4)", color: "#C4B5FD" }}
-                  onClick={() => { setEditingItems(selectedVideoItems); exitSelecting(); }}>
-                  ✏️ Editar ({selectedVideoItems.length})
+                <button style={{ ...DOCKBTN, borderColor: "rgba(124,58,237,0.4)", color: "#C4B5FD" }}
+                  onMouseEnter={(e) => hover(e, true)} onMouseLeave={(e) => hover(e, false)}
+                  onClick={() => { setEditingItems(selectedVideoItems); exitSelecting(); }} title="Editor de vídeo (recortes, música)">
+                  ✏️ <span>Editar</span>
                 </button>
               )}
-              <button className="gallery-assemble-go"
-                disabled={selected.length === 0 || rendering}
-                style={{ background: "rgba(124,58,237,0.22)", borderColor: "rgba(167,139,250,0.5)", fontWeight: 600 }}
+              <button disabled={selected.length === 0 || rendering}
+                style={{ ...DOCKBTN, background: "rgba(124,58,237,0.32)", borderColor: "rgba(167,139,250,0.65)", opacity: selected.length === 0 ? 0.45 : 1, boxShadow: "0 4px 18px -4px rgba(124,58,237,0.5)" }}
+                onMouseEnter={(e) => { if (selected.length) { e.currentTarget.style.background = "rgba(124,58,237,0.45)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(124,58,237,0.32)"; e.currentTarget.style.transform = "none"; }}
                 onClick={() => {
-                  // Prefill de subtítulos con el prompt de cada asset (editable luego)
                   setSceneTexts((prev) => {
                     const next = { ...prev };
                     selected.forEach((id) => {
@@ -648,16 +680,18 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
                   });
                   setEditorOpen(true);
                 }}>
-                {rendering ? "Renderizando…" : `🎬 Montar película (${selected.length})`}
+                {rendering ? "⏳ Renderizando…" : "🎬 Montar película"}
               </button>
+              <button title="Salir del modo selección" style={{ ...DOCKBTN, padding: "9px 12px" }}
+                onMouseEnter={(e) => hover(e, true)} onMouseLeave={(e) => hover(e, false)} onClick={exitSelecting}>✕</button>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── Editor de película — modal cinematográfico ── */}
         {editorOpen && (() => {
           const selItems = selected.map((id) => items.find((i) => i.id === id)).filter(Boolean);
-          const durOf = (it) => (scenePlan[it.id] && scenePlan[it.id].duration_s) || parseFloat(String(it.duration || "")) || (it.kind === "video" ? 5 : 2.5);
+          const durOf = durOfItem; // duración real de vídeos vía metadata
           const totalS = selItems.reduce((a, it) => a + durOf(it), 0);
           const move = (idx, dir) => {
             setSelected((prev) => {
