@@ -1,27 +1,32 @@
 # ──────────────────────────────────────────────────────────────────────────
 # Cliender Desing Pro V1 — Prototipo HTML (multi-stage)
-# A1: JSX precompilado con esbuild en build → SIN Babel en el navegador.
-#     Arranque mucho más rápido, ~1.5MB menos de descarga, cero transpilación
-#     en runtime. El flujo de dev sigue editando .jsx; el build los compila.
+# A1: JSX precompilado en build → SIN Babel en el navegador (arranque rápido,
+#     ~1.5MB menos de descarga, cero transpilación en runtime).
 # B2: build multi-stage → la imagen final (nginx) NO incluye node ni toolchain.
 # Puerto interno: 80 · Puerto host: 2002 (categoría HTML/manuales)
 # ──────────────────────────────────────────────────────────────────────────
 
-# ── Stage 1: precompilar JSX → JS (transform-only, sin bundle) ──────────────
+# ── Stage 1: precompilar JSX → JS ───────────────────────────────────────────
+# Se usa Babel (NO esbuild) a propósito: @babel/plugin-transform-block-scoping
+# convierte const/let → var con hoisting, replicando EXACTAMENTE la semántica que
+# daba @babel/standalone en el navegador. El código (App, 4800 líneas) declara
+# effects/memos que dependen de estado declarado cientos de líneas después; con
+# const/let reales (esbuild) eso es TDZ ("Cannot access X before initialization").
+# Con var hoisted no hay TDZ. preset-react sólo transforma JSX; async/await y arrow
+# quedan INTACTOS (no se necesita regenerator). Cada archivo se envuelve en un IIFE
+# para aislar su scope (como hacía Babel por-script) — comparten sólo vía window.
 FROM node:20-alpine AS jsxbuild
 WORKDIR /src
-RUN npm i -g esbuild@0.28.0
+RUN npm init -y >/dev/null 2>&1 && \
+    npm i --no-audit --no-fund \
+      @babel/core@7 @babel/cli@7 @babel/preset-react@7 @babel/plugin-transform-block-scoping@7
 COPY prototype /src/prototype
-# Cada .jsx → .js en su PROPIO scope (--format=iife): los archivos NO son módulos
-# ESM y comparten sólo vía window (cada uno hace Object.assign(window,{...}) al final
-# e importa con const X = window.X). El IIFE replica el aislamiento por-script que
-# daba Babel-standalone y evita colisiones de top-level const (useState, Icon, …).
-# React llega por UMD global (no por import); el orden de carga lo fija el HTML.
 RUN set -e; for f in nodes vault ui leftmenu analytics astronaut app; do \
-      esbuild "/src/prototype/$f.jsx" \
-        --loader:.jsx=jsx --jsx=transform \
-        --jsx-factory=React.createElement --jsx-fragment=React.Fragment \
-        --format=iife --target=es2020 --outfile="/src/prototype/$f.js"; \
+      npx babel "/src/prototype/$f.jsx" \
+        --presets @babel/preset-react \
+        --plugins @babel/plugin-transform-block-scoping \
+        -o "/tmp/$f.raw.js"; \
+      { echo '(function(){'; cat "/tmp/$f.raw.js"; echo '})();'; } > "/src/prototype/$f.js"; \
     done; \
     rm -f /src/prototype/*.jsx /src/prototype/*.backup
 

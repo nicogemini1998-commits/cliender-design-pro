@@ -1193,8 +1193,11 @@ function App() {
   const nodesRef = useRef([]);
   const _genTapRef = useRef(new Map()); // nodeId → timestamp última generación (anti doble-click)
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
-  useEffect(() => { window.__cdpSetNodes = setNodes; window.__cdpSetEdges = setEdges; window.__downloadAsset = downloadAsset; window.__proxied = proxied; }, [setNodes, setEdges]);
   const [edges, setEdges] = useState([]);
+  // Debe ir DESPUÉS de declarar edges/setEdges: el array de deps [setNodes, setEdges]
+  // se evalúa en render; sin Babel (que hoisteaba const→var) esto daba TDZ — "Cannot
+  // access 'setEdges' before initialization".
+  useEffect(() => { window.__cdpSetNodes = setNodes; window.__cdpSetEdges = setEdges; window.__downloadAsset = downloadAsset; window.__proxied = proxied; }, [setNodes, setEdges]);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set()); // multi-select for grouping
 
