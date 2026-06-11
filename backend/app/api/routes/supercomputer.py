@@ -651,7 +651,7 @@ REGLAS DE EDITOR PROFESIONAL:
 3. cut es tu transición por defecto entre planos del mismo bloque; reserva las transiciones vistosas para cambios de bloque o momentos clave.
 4. Alterna kenburns entre escenas consecutivas (nunca dos zoomin seguidos).
 5. Si el usuario pide algo del catálogo por descripción ("latigazo", "quemado"), mapea al id correcto.
-6. duration_s solo si el ritmo lo requiere (rango 0.8-12). Respeta la duración natural de los VÍDEOS salvo que pidan recorte explícito.
+6. Los VÍDEOS se reproducen SIEMPRE completos: NUNCA pongas duration_s a una escena de vídeo (el sistema lo ignorará). duration_s solo para IMÁGENES (rango 0.8-12s).
 7. captions: SOLO si el usuario pide rótulos/textos; frases de 3-6 palabras, potentes.
 
 RESPONDE SOLO con JSON válido, sin markdown ni explicación:
@@ -716,6 +716,7 @@ async def edit_plan(req: EditPlanRequest) -> EditPlanResponse:
     order += [i for i in ids if i not in seen]  # garantizar que están todas
 
     by_id = {str(x.get("id")): x for x in (raw.get("scenes") or []) if isinstance(x, dict)}
+    kind_by_id = {s.id: (s.kind or "image").lower() for s in req.scenes}
     scenes_out: list[dict[str, Any]] = []
     for sid in order:
         x = by_id.get(sid, {})
@@ -725,6 +726,10 @@ async def edit_plan(req: EditPlanRequest) -> EditPlanResponse:
         try:
             dur = float(dur) if dur is not None else None
         except (TypeError, ValueError):
+            dur = None
+        # REGLA DURA: los vídeos del usuario se reproducen completos — el plan IA
+        # jamás los recorta (causa del bug "película de 15s con 1min de vídeos").
+        if kind_by_id.get(sid) == "video":
             dur = None
         if dur is not None:
             dur = max(0.8, min(12.0, dur))

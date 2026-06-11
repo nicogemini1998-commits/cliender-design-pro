@@ -639,14 +639,14 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
         {selecting && !batchMode && (() => {
           const selItemsDock = selected.map((id) => items.find((i) => i.id === id)).filter(Boolean);
           const totalSel = selItemsDock.reduce((a, it) => a + durOfItem(it), 0);
-          const DOCKBTN = { display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 12, fontSize: 12.5, fontWeight: 600, cursor: "pointer", border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "inherit", transition: "background .15s, border .15s, transform .1s" };
-          const hover = (e, on) => { e.currentTarget.style.background = on ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)"; e.currentTarget.style.transform = on ? "translateY(-1px)" : "none"; };
+          const DOCKBTN = { display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 12, fontSize: 12.5, fontWeight: 600, cursor: "pointer", border: "1px solid var(--line)", background: "var(--surface-2)", color: "var(--text-1)", transition: "background .15s, border .15s, transform .1s" };
+          const hover = (e, on) => { e.currentTarget.style.background = on ? "rgba(139,92,246,0.14)" : "var(--surface-2)"; e.currentTarget.style.transform = on ? "translateY(-1px)" : "none"; };
           return (
             <div style={{ position: "fixed", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 350,
               display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 18, maxWidth: "94vw", flexWrap: "wrap", justifyContent: "center",
-              background: "rgba(10,10,18,0.85)", backdropFilter: "blur(20px) saturate(1.3)", WebkitBackdropFilter: "blur(20px) saturate(1.3)",
+              background: "color-mix(in srgb, var(--surface) 88%, transparent)", color: "var(--text-1)", backdropFilter: "blur(20px) saturate(1.3)", WebkitBackdropFilter: "blur(20px) saturate(1.3)",
               border: "1px solid rgba(167,139,250,0.3)", boxShadow: "0 18px 50px -12px rgba(0,0,0,0.75), inset 0 0 0 1px rgba(255,255,255,0.04)" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingRight: 12, borderRight: "1px solid rgba(255,255,255,0.1)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingRight: 12, borderRight: "1px solid var(--line)" }}>
                 <span style={{ fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>{selected.length} escena{selected.length === 1 ? "" : "s"} · ~{Math.round(totalSel)}s</span>
                 <span className="mono" style={{ fontSize: 9.5, opacity: 0.55, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>toca los assets en orden de aparición</span>
               </div>
@@ -704,7 +704,7 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
           };
           const LBL = { fontSize: 10, opacity: 0.65, textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 8 };
           const DSC = { fontSize: 11, opacity: 0.6, lineHeight: 1.4, marginTop: 7 };
-          const SBTN = { flex: 1, background: "none", border: "none", color: "#cfcfdd", fontSize: 10, padding: "4px 0", cursor: "pointer" };
+          const SBTN = { flex: 1, background: "none", border: "none", color: "#E4E4EC", fontSize: 10, padding: "4px 0", cursor: "pointer" };
           // Dirección IA: envía el prompt + escenas a /chat/edit-plan y aplica el plan al editor
           const applyAIPlan = async () => {
             const p = editPrompt.trim();
@@ -729,7 +729,12 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
               if (Array.isArray(plan.order) && plan.order.length) setSelected(plan.order);
               const byId = {};
               (plan.scenes || []).forEach((s) => {
-                if (s && s.id) byId[s.id] = { transition: s.transition || null, kenburns: s.kenburns || null, duration_s: s.duration_s || null };
+                if (s && s.id) {
+                  const item = selItems.find((x) => x.id === s.id);
+                  // Los vídeos se reproducen completos: el plan IA nunca los recorta
+                  const allowDur = !(item && item.kind === "video");
+                  byId[s.id] = { transition: s.transition || null, kenburns: s.kenburns || null, duration_s: allowDur ? (s.duration_s || null) : null };
+                }
               });
               setScenePlan(byId);
               const caps = {};
@@ -750,11 +755,15 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
             } finally { setAiPlanning(false); }
           };
           return (
-            <div className="form-popup-backdrop" style={{ zIndex: 400 }} onClick={() => !rendering && setEditorOpen(false)}>
-              <div className="form-popup" onClick={(e) => e.stopPropagation()}
-                style={{ maxWidth: 740, width: "94vw", maxHeight: "90vh", overflowY: "auto", padding: 0 }}>
+            <div onClick={() => !rendering && setEditorOpen(false)}
+              style={{ position: "fixed", inset: 0, zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+                background: "rgba(8,8,14,0.5)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
+              <div className="scroll-thin" onClick={(e) => e.stopPropagation()}
+                style={{ width: "min(760px, 100%)", maxHeight: "min(88vh, 1000px)", overflowY: "auto", borderRadius: 22,
+                  background: "var(--surface)", color: "var(--text-1)", border: "1px solid var(--line)",
+                  boxShadow: "0 32px 90px -18px rgba(0,0,0,0.55), 0 0 0 1px rgba(139,92,246,0.10)" }}>
 
-                <div style={{ padding: "20px 24px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ padding: "20px 24px 14px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "var(--surface)", zIndex: 5, borderTopLeftRadius: 22, borderTopRightRadius: 22 }}>
                   <div>
                     <div style={{ fontSize: 17, fontWeight: 600 }}>🎬 Editor de película</div>
                     <div className="mono" style={{ fontSize: 10.5, opacity: 0.6, marginTop: 3, letterSpacing: "0.1em", textTransform: "uppercase" }}>
@@ -771,7 +780,7 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
                     <div className="mono" style={LBL}>🎬 Dirección de edición — describe el montaje y la IA configura todo</div>
                     <textarea value={editPrompt} onChange={(e) => setEditPrompt(e.target.value)} rows={3}
                       placeholder={"Ej: estilo tráiler: abre con el plano más potente, ritmo rápido (1.5s por plano) con cortes secos, un film burn al cambiar de bloque, look noir, y el plano final lento con zoom out…"}
-                      style={{ width: "100%", padding: "10px 12px", fontSize: 12.5, lineHeight: 1.5, borderRadius: 10, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)", color: "inherit", outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+                      style={{ width: "100%", padding: "10px 12px", fontSize: 12.5, lineHeight: 1.5, borderRadius: 10, background: "var(--surface-2)", border: "1px solid var(--line)", color: "var(--text-1)", outline: "none", resize: "vertical", boxSizing: "border-box" }} />
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
                       <button className="gallery-assemble-go" disabled={!editPrompt.trim() || aiPlanning} onClick={applyAIPlan}
                         style={{ background: "rgba(124,58,237,0.2)", borderColor: "rgba(167,139,250,0.5)", fontWeight: 600 }}>
@@ -816,8 +825,8 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
                         <button key={id} onClick={() => setLook(id)}
                           style={{
                             textAlign: "left", padding: "10px 12px", borderRadius: 10, cursor: "pointer",
-                            background: look === id ? "rgba(124,58,237,0.16)" : "rgba(255,255,255,0.03)",
-                            border: look === id ? "1.5px solid rgba(167,139,250,0.65)" : "1px solid rgba(255,255,255,0.08)",
+                            background: look === id ? "rgba(124,58,237,0.16)" : "var(--surface-2)",
+                            border: look === id ? "1.5px solid var(--accent-2)" : "1px solid var(--line)",
                             color: "inherit",
                           }}>
                           <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
@@ -850,7 +859,7 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
                         { k: "origAudio", v: origAudio, set: setOrigAudio, t: "Audio original", d: "Mantener la voz y el sonido de tus vídeos en la película" },
                         { k: "branding", v: branding, set: setBranding, t: "Intro/Outro de marca", d: "Cabecera y cierre Cliender. Apagado = SOLO tu contenido" },
                       ].map((o) => (
-                        <label key={o.k} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "9px 11px", borderRadius: 10, cursor: "pointer", background: o.v ? "rgba(124,58,237,0.10)" : "rgba(255,255,255,0.025)", border: o.v ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.07)" }}>
+                        <label key={o.k} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "9px 11px", borderRadius: 10, cursor: "pointer", background: o.v ? "rgba(124,58,237,0.10)" : "var(--surface-2)", border: o.v ? "1px solid var(--accent-2)" : "1px solid var(--line)" }}>
                           <input type="checkbox" checked={o.v} onChange={(e) => o.set(e.target.checked)} style={{ marginTop: 2 }} />
                           <span>
                             <span style={{ display: "block", fontSize: 12.5, fontWeight: 600 }}>{o.t}</span>
@@ -874,7 +883,7 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
                               maxLength={120}
                               placeholder="Escribe el subtítulo de esta escena… (vacío = sin subtítulo)"
                               onChange={(e) => setSceneTexts((p) => ({ ...p, [it.id]: e.target.value }))}
-                              style={{ flex: 1, height: 32, padding: "4px 12px", fontSize: 12.5, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "inherit", outline: "none" }}
+                              style={{ flex: 1, height: 32, padding: "4px 12px", fontSize: 12.5, borderRadius: 8, background: "var(--surface-2)", border: "1px solid var(--line)", color: "var(--text-1)", outline: "none" }}
                             />
                           </div>
                         ))}
@@ -883,7 +892,7 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
                     </div>
                   )}
 
-                  <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center", borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: 16 }}>
+                  <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center", borderTop: "1px solid var(--line)", paddingTop: 16 }}>
                     {rendering && <span className="mono" style={{ fontSize: 11, opacity: 0.7, marginRight: "auto" }}>⏳ Renderizando película… 1-2 min</span>}
                     <button className="btn-soft" disabled={rendering} onClick={() => setEditorOpen(false)}>Cancelar</button>
                     <button className="gallery-assemble-go" disabled={selItems.length === 0 || rendering} onClick={assemble}
