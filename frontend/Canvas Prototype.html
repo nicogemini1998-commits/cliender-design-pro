@@ -129,24 +129,23 @@
     })();
   </script>
 
-  <!-- React + Babel (pinned) -->
+  <!-- React (pinned) — JSX precompilado con esbuild en build; SIN Babel en runtime -->
   <!-- Runtime config (plain JS, must load before any jsx) -->
   <script src="prototype/config.js"></script>
 
   <!-- React PRODUCTION: mitad de peso y renders notablemente más rápidos que la build development -->
   <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
   <!-- Three.js (astronauta 3D + shader loader): defer — no bloquea el arranque; nada lo usa hasta runtime -->
   <script defer src="https://unpkg.com/three@0.160.0/build/three.min.js" integrity="sha384-qOkzR5Ke/XkQxuGVJ9hpFEpDlcoLtWwVYhnJf06cLIZa2vaIptSqaubivErzmD5O" crossorigin="anonymous"></script>
 
-  <script type="text/babel" src="prototype/nodes.jsx"></script>
-  <script type="text/babel" src="prototype/vault.jsx"></script>
-  <script type="text/babel" src="prototype/ui.jsx"></script>
-  <script type="text/babel" src="prototype/leftmenu.jsx"></script>
-  <script type="text/babel" src="prototype/analytics.jsx"></script>
-  <script type="text/babel" src="prototype/astronaut.jsx"></script>
-  <script type="text/babel" src="prototype/app.jsx"></script>
+  <script src="prototype/nodes.js"></script>
+  <script src="prototype/vault.js"></script>
+  <script src="prototype/ui.js"></script>
+  <script src="prototype/leftmenu.js"></script>
+  <script src="prototype/analytics.js"></script>
+  <script src="prototype/astronaut.js"></script>
+  <script src="prototype/app.js"></script>
 </body>
 </html>

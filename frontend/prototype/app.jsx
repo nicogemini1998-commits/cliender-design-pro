@@ -1597,9 +1597,18 @@ function App() {
   };
   React.useEffect(() => {
     try {
-      const payload = JSON.stringify(moodboards);
+      // M4-fe: NUNCA persistir base64 (data:) en localStorage — revienta la cuota
+      // (~5MB) y la fuente real es Supabase (el poll de __moodboards lo restaura).
+      // Se cachean sólo URLs http(s); las data: se vacían en el cache local.
+      const _lite = (moodboards || []).map((mb) => ({
+        ...mb,
+        images: (mb.images || []).map((im) =>
+          im && typeof im.url === 'string' && im.url.startsWith('data:') ? { ...im, url: '' } : im
+        ),
+      }));
+      const payload = JSON.stringify(_lite);
       if (payload.length > 4_500_000) {
-        console.warn('[moodboards] localStorage payload ~' + Math.round(payload.length/1024) + 'KB, cerca del límite. Considerar URLs externas.');
+        console.warn('[moodboards] localStorage payload ~' + Math.round(payload.length/1024) + 'KB, cerca del límite.');
       }
       localStorage.setItem('cdp-moodboards-v1', payload);
     } catch (e) { console.warn('[moodboards] localStorage save failed', e); }

@@ -77,11 +77,11 @@ services:
     image: cliender-desingpro/prototype:0.1.0
     env_file:
       - .env.cdpro
-    volumes:
-      - "../01. PROTOTIPO HTML/prototype:/usr/share/nginx/html/prototype:ro"
-      # index.html (Canvas Prototype.html), Login.html y nginx.conf NO se bind-montean:
-      # van COPY en el Dockerfile. Bind-mount de ARCHIVO UNICO desde OneDrive causa
-      # EDEADLK (35: Resource deadlock). Solo se monta la carpeta prototype/ (live-edit JSX/CSS).
+    # A1: el prototype/ ya NO se bind-montea. Los .jsx se precompilan a .js en el
+    # Dockerfile (esbuild, sin Babel en el navegador) y van dentro de la imagen.
+    # Un bind-mount del source .jsx taparía los .js compilados y rompería la carga.
+    # Iterar en dev = `docker compose up -d --build cdpro-prototype`.
+    # index.html (Canvas Prototype.html), Login.html y nginx.conf van COPY en el Dockerfile.
     ports:
       - "2002:80"
     depends_on:

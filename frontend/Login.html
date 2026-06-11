@@ -1082,7 +1082,7 @@
       });
       // Prefetch del canvas + sus scripts mientras el usuario escribe → al hacer login ya estan en cache.
       try {
-        ['Canvas Prototype.html','prototype/config.js','prototype/app.jsx','prototype/nodes.jsx'].forEach(function(href){
+        ['Canvas Prototype.html','prototype/config.js','prototype/app.js','prototype/nodes.js'].forEach(function(href){
           var l = document.createElement('link'); l.rel = 'prefetch'; l.href = href; document.head.appendChild(l);
         });
       } catch(e){}
