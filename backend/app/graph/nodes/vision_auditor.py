@@ -14,9 +14,12 @@ imágenes a una carpeta del Style Vault (endpoint /moodboards/audit).
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
+import time
+import uuid
 from typing import Any
 
 import httpx
@@ -25,18 +28,23 @@ from anthropic import AsyncAnthropic
 
 from app.core.config import get_settings
 from app.schemas.moodboard import Moodboard, MoodboardImage, StyleManifest
+from app.services.http import get_http
 
 
 _VISION_AUDITOR_SYSTEM = """Eres el Vision_Auditor del enjambre creativo de Cliender.
 
 === IDIOMA DE RESPUESTA (REGLA ABSOLUTA) ===
-TODOS los campos del JSON deben estar EN CASTELLANO, EXCEPTO:
-  - "master_style_prompt" → SIEMPRE en inglés (lo usa la IA generativa KIE.ai directamente)
-  - "character_prompt" dentro de cada personaje → SIEMPRE en inglés (mismo motivo)
-  - "color_palette" → hex codes, idioma no aplica
-  - "consistency_score" → número, idioma no aplica
+TODOS los campos del JSON deben estar EN CASTELLANO, EXCEPTO (estos van SIEMPRE en INGLÉS):
+  - "master_style_prompt" → lo usa la IA generativa KIE.ai directamente como prompt.
+  - "negative_prompt" → lo usa la IA generativa KIE.ai directamente como negative prompt.
+  - "character_prompt" dentro de cada personaje → prompt directo para la IA (mismo motivo).
+Y estos no aplican idioma:
+  - "color_palette" → hex codes.
+  - "consistency_score" → número.
 NO traduzcas los valores de "text_content" (transcripción literal de texto visible en imagen).
-Todo lo demás (lighting_style, camera_lens_feel, mood_keywords, composition_rules, etc.) → castellano.
+Todo lo demás (color_grading, lighting_style, camera_lens_feel, mood_keywords, composition_rules,
+composition_layers, typography, filters_effects, character_traits, characters[].identity/description/
+appearance/pose, etc.) → EN CASTELLANO, sin excepción.
 
 
 Eres un equipo fusionado en una sola mente: Director de Fotografía + Casting Director +
@@ -94,10 +102,10 @@ poses, personajes, grano, color grade, composición. NO resumas. Sé concreto y 
    Sin personas visibles → characters: [].
 
 8. MOOD Y ESTILO (mood_keywords + master_style_prompt + negative_prompt):
-   - mood_keywords: 4-8 palabras (editorial, brutal, cinematic, melancholic, luxury, gritty...).
+   - mood_keywords: 4-8 palabras EN CASTELLANO (editorial, brutalista, cinematográfico, melancólico, lujoso, crudo...).
    - master_style_prompt: 50-80 palabras EN INGLÉS (OBLIGATORIO — lo usa la IA generativa),
      denso, prependible a cualquier brief, captura el ADN visual completo.
-   - negative_prompt: lo que este estilo NUNCA permite. EN CASTELLANO.
+   - negative_prompt: lo que este estilo NUNCA permite. EN INGLÉS (lo usa la IA generativa como negative prompt).
 
 === CONSISTENCY SCORE (regla estricta) ===
 consistency_score = número decimal entre 0.0 y 1.0 (NO uses escala 0-10, NO uses porcentaje).
@@ -151,6 +159,39 @@ ESQUEMA:
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+_ANALYTICS_URL = "http://127.0.0.1:8000/analytics/track"
+
+
+async def _track_audit(
+    model: str,
+    tokens_in: int,
+    tokens_out: int,
+    duration_ms: int,
+    status: str = "ok",
+    error_msg: str = "",
+) -> None:
+    """Registra la llamada Vision en /analytics/track — mismo patrón que claude_client._track.
+
+    Fire-and-forget: silencioso en caso de error, nunca rompe el flujo del audit.
+    """
+    try:
+        payload = {
+            "session_id": str(uuid.uuid4()),
+            "model": model,
+            "provider": "claude",
+            "tokens_in": tokens_in,
+            "tokens_out": tokens_out,
+            "endpoint": "/moodboards/audit",
+            "node_type": "vision_auditor",
+            "duration_ms": duration_ms,
+            "status": status,
+            "error_msg": error_msg[:200] if error_msg else "",
+        }
+        await get_http().post(_ANALYTICS_URL, json=payload)
+    except Exception:  # noqa: BLE001
+        pass  # analytics nunca rompe el flujo principal
+
 
 _ALLOWED_MEDIA = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 _MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5MB Anthropic cap
@@ -266,10 +307,15 @@ class VisionAuditor:
                 ),
             },
         ]
-        # Limit defensive: Claude maneja ~20 imgs cómodamente
-        for img in moodboard.images[:20]:
-            block = await _image_block(img)
-            if block is not None:
+        # Limit defensive: Claude maneja ~20 imgs cómodamente.
+        # Descarga en PARALELO (antes secuencial: 20 imgs = 20x más lento);
+        # gather preserva el orden y filtramos None/excepciones.
+        blocks = await asyncio.gather(
+            *[_image_block(img) for img in moodboard.images[:20]],
+            return_exceptions=True,
+        )
+        for block in blocks:
+            if block is not None and not isinstance(block, BaseException):
                 content.append(block)
 
         n_images_attached = sum(1 for c in content if c.get("type") == "image")
@@ -278,6 +324,7 @@ class VisionAuditor:
             return _fallback_manifest(moodboard, error="no_usable_images")
         logger.info("vision_auditor.images_attached moodboard=%s count=%d", moodboard.id, n_images_attached)
 
+        t0 = time.monotonic()
         try:
             resp = await self._client.messages.create(
                 model=self._model,
@@ -285,6 +332,31 @@ class VisionAuditor:
                 system=_VISION_AUDITOR_SYSTEM,
                 messages=[{"role": "user", "content": content}],
             )
+        except Exception as exc:  # noqa: BLE001
+            # Llamada fallida → registrar fila status="error" (tokens 0: la
+            # excepción de Anthropic no trae usage) y degradar a fallback.
+            duration_ms = int((time.monotonic() - t0) * 1000)
+            asyncio.ensure_future(
+                _track_audit(self._model, 0, 0, duration_ms, status="error", error_msg=str(exc))
+            )
+            logger.exception(
+                "vision_auditor.failed moodboard=%s images=%d error=%s",
+                moodboard.id, len(moodboard.images), exc,
+            )
+            return _fallback_manifest(moodboard, error=str(exc))
+
+        # Tracking de costes — fire-and-forget con tokens reales de resp.usage
+        duration_ms = int((time.monotonic() - t0) * 1000)
+        asyncio.ensure_future(
+            _track_audit(
+                self._model,
+                resp.usage.input_tokens,
+                resp.usage.output_tokens,
+                duration_ms,
+            )
+        )
+
+        try:
             raw = "".join(b.text for b in resp.content if b.type == "text").strip()
             logger.info(
                 "vision_auditor.raw_response moodboard=%s len=%d preview=%s",

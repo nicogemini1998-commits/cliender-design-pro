@@ -194,6 +194,8 @@ function AdnPopup({ mb, dispatch, onClose }) {
     if (!mb?.manifest) return;
     const m = mb.manifest;
     setDraft({
+      colorPalette: [...(m.colorPalette||[])],
+      colorGrading: m.colorGrading || "",
       lightingStyle: m.lightingStyle || "",
       cameraLensFeel: m.cameraLensFeel || "",
       masterStylePrompt: m.masterStylePrompt || "",
@@ -218,11 +220,16 @@ function AdnPopup({ mb, dispatch, onClose }) {
   const circumference = 2 * Math.PI * 24;
   const dashOffset = circumference - (score/100)*circumference;
   const set = k => e => setDraft(d => ({...d, [k]: e.target.value}));
+  const setSwatch = (i, v) => setDraft(d => ({...d, colorPalette: (d.colorPalette||[]).map((c,j)=>j===i?v:c)}));
+  const addSwatch = () => setDraft(d => ({...d, colorPalette: [...(d.colorPalette||[]), "#888888"]}));
+  const delSwatch = (i) => setDraft(d => ({...d, colorPalette: (d.colorPalette||[]).filter((_,j)=>j!==i)}));
 
   const save = () => {
     if (!draft) return;
     dispatch({ type:"SET_MANIFEST", id:mb.id, manifest:{
       ...m,
+      colorPalette: (draft.colorPalette||[]).map(c=>String(c).trim()).filter(Boolean),
+      colorGrading: draft.colorGrading,
       lightingStyle: draft.lightingStyle,
       cameraLensFeel: draft.cameraLensFeel,
       masterStylePrompt: draft.masterStylePrompt,
@@ -237,6 +244,8 @@ function AdnPopup({ mb, dispatch, onClose }) {
 
   const cancel = () => {
     setDraft({
+      colorPalette: [...(m.colorPalette||[])],
+      colorGrading: m.colorGrading||"",
       lightingStyle: m.lightingStyle||"",
       cameraLensFeel: m.cameraLensFeel||"",
       masterStylePrompt: m.masterStylePrompt||"",
@@ -299,13 +308,35 @@ function AdnPopup({ mb, dispatch, onClose }) {
             {/* Paleta */}
             <div className="adn-section">
               <div className="adn-label mono">paleta dominante</div>
-              <div className="adn-palette">
-                {(m.colorPalette||[]).map((c,i) => (
-                  <div key={c+i} className="adn-swatch" style={{background:c}} title={c}>
-                    <span className="adn-swatch-hex mono">{c.toUpperCase()}</span>
-                  </div>
-                ))}
-              </div>
+              {editing ? (
+                <div style={{display:'flex',flexWrap:'wrap',gap:8,alignItems:'center'}}>
+                  {(draft.colorPalette||[]).map((c,i) => (
+                    <div key={i} style={{display:'flex',alignItems:'center',gap:4,background:'rgba(255,255,255,0.04)',borderRadius:8,padding:'4px 6px'}}>
+                      <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(c)?c:"#888888"} onChange={e=>setSwatch(i,e.target.value)} style={{width:26,height:26,border:'none',background:'none',padding:0,cursor:'pointer'}} title="elige color"/>
+                      <input value={c} onChange={e=>setSwatch(i,e.target.value)} placeholder="#RRGGBB" className="mono" style={{width:80,fontSize:11,padding:'3px 5px',borderRadius:6,border:'1px solid var(--line,rgba(255,255,255,0.12))',background:'transparent',color:'var(--text-1,#fff)'}}/>
+                      <button onClick={()=>delSwatch(i)} title="quitar" style={{border:'none',background:'none',color:'#f87171',cursor:'pointer',fontSize:12,lineHeight:1}}>✕</button>
+                    </div>
+                  ))}
+                  <button className="cdp-btn cdp-btn-ghost" onClick={addSwatch} style={{fontSize:11,padding:'4px 10px'}}>+ color</button>
+                </div>
+              ) : (
+                <div className="adn-palette">
+                  {(m.colorPalette||[]).map((c,i) => (
+                    <div key={c+i} className="adn-swatch" style={{background:c}} title={c}>
+                      <span className="adn-swatch-hex mono">{String(c).toUpperCase()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Color grading */}
+            <div className="adn-section">
+              <div className="adn-label mono">color grading</div>
+              {editing
+                ? <textarea className="adn-textarea" rows={2} value={draft.colorGrading} onChange={set("colorGrading")}/>
+                : <div className="adn-text">{m.colorGrading}</div>
+              }
             </div>
 
             {/* Mood keywords */}
