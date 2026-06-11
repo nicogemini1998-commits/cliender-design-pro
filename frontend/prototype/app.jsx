@@ -2968,7 +2968,7 @@ function App() {
     // No buscamos en edges (closure stale) — usamos el id capturado arriba.
     setNodes((ns) => ns.map((n) =>
       n.id === _outputNodeId
-        ? { ...n, data: { ...n.data, status: "done", kind: node.type, modelId: node.data.modelId, pending: 0, items: [...newItems, ...(n.data.items?.filter(i => i.url) || [])] } }
+        ? { ...n, data: { ...n.data, status: "done", kind: node.type, modelId: node.data.modelId, pending: 0, items: [...newItems, ...((n.data.items || []).filter(i => i.url && !newItems.some(ni => ni.id === i.id)))] } }
         : n
     ));
 
