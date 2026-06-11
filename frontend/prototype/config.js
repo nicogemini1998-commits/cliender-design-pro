@@ -108,6 +108,31 @@ window.__store = {
    */
   poll(collection, apply, intervalMs = 30000) {
     this.stopPoll(collection);
+    // M1: escalonar el arranque de las colecciones para no disparar ráfagas
+    // simultáneas, y pausar cuando la pestaña está oculta (ahorra batería/red/backend).
+    const _offsets = { agents: 0, projects: 1500, "flow-templates": 3000, clients: 4500 };
+    const tick = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      const remote = await this.get(collection);
+      if (remote == null) return;
+      apply(remote, () => {});
+    };
+    setTimeout(() => {
+      tick();
+      this._polls[collection] = setInterval(tick, intervalMs);
+    }, _offsets[collection] || 0);
+    // Al volver a primer plano, refrescar de inmediato (no esperar 30s).
+    if (typeof document !== "undefined" && !this._visWired) {
+      this._visWired = true;
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) Object.keys(this._polls).forEach((c) => this.get(c).then((r) => r && this._applies && this._applies[c] && this._applies[c](r, () => {})));
+      });
+    }
+    this._applies = this._applies || {};
+    this._applies[collection] = apply;
+  },
+  _pollOLD(collection, apply, intervalMs = 30000) {
+    this.stopPoll(collection);
     let lastSig = "";
     const tick = async () => {
       const remote = await this.get(collection);
@@ -226,6 +251,21 @@ window.__moodboards = {
   },
 
   poll(apply, intervalMs = 30000) {
+    if (this._poll) clearInterval(this._poll);
+    const tick = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;  // M1: pausa en background
+      const remote = await this.list();
+      if (remote == null) return;
+      apply(remote);
+    };
+    tick();
+    this._poll = setInterval(tick, intervalMs);
+    if (typeof document !== "undefined" && !this._visWired) {
+      this._visWired = true;
+      document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
+    }
+  },
+  _pollOLD(apply, intervalMs = 30000) {
     if (this._poll) clearInterval(this._poll);
     const tick = async () => {
       const remote = await this.list();

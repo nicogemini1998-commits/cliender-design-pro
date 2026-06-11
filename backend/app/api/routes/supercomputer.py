@@ -12,7 +12,7 @@ from typing import Any, AsyncGenerator
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.api.routes.moodboard import get_active_moodboard
 from app.schemas.moodboard import StyleManifest
@@ -33,7 +33,7 @@ _graph = build_graph()
 # ---------------------------------------------------------------------------
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., max_length=8000)  # H-7: cap anti prompt-injection/coste
     pinned_model: str | None = None
     moodboard_id: str | None = None
     client_context: dict[str, Any] | None = None  # brand DNA del cliente seleccionado
@@ -674,8 +674,8 @@ class EditPlanScene(BaseModel):
 
 
 class EditPlanRequest(BaseModel):
-    prompt: str
-    scenes: list[EditPlanScene]
+    prompt: str = Field(..., max_length=4000)
+    scenes: list[EditPlanScene] = Field(..., max_length=80)
 
 
 class EditPlanResponse(BaseModel):

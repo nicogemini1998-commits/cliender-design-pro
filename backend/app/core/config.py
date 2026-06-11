@@ -84,6 +84,14 @@ class Settings(BaseSettings):
         return v
 
     # Cerebro cognitivo — SOLO Claude
+    @field_validator("cors_origins", mode="after")
+    @classmethod
+    def _no_wildcard_prod(cls, v: Any, info: Any) -> Any:
+        # L-1: en prod, un "*" en cors_origins con allow_credentials=True es crítico.
+        if "*" in (v or []) and str(info.data.get("environment", "dev")).lower() in ("prod", "production"):
+            raise ValueError("CORS wildcard '*' no permitido en producción")
+        return v
+
     anthropic_api_key: str = ""
     claude_model: str = "claude-sonnet-4-6"
     claude_max_tokens: int = 4096

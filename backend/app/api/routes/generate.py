@@ -5,6 +5,7 @@ Usado por el frontend del prototipo (localhost:2002) sin pasar por LangGraph.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import re
@@ -32,6 +33,7 @@ class GenerateRequest(BaseModel):
     first_frame_url: Optional[str] = None          # primera imagen para Seedance
     aspect: Optional[str] = None                   # "1:1", "16:9", "9:16", etc.
     duration: Optional[int] = None                 # segundos (solo vídeo)
+    seed: Optional[int] = None                     # semilla reproducible -> mismo prompt+seed = mismo resultado
 
 
 class GenerateResponse(BaseModel):
@@ -44,6 +46,13 @@ class GenerateResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Analytics tracking helper — fire-and-forget, nunca bloquea la respuesta
 # ---------------------------------------------------------------------------
+
+# Caché de precios KIE — evita una query a model_pricing por cada generación.
+# Clave: model_key → (timestamp_monotonic, price_out). TTL 300s.
+_PRICING_CACHE: dict[str, tuple[float, float]] = {}
+_PRICING_TTL = 300.0
+
+
 async def _track_kie(model_id: str, media_kind: str, duration_ms: int, status: str = "ok", error: str = "") -> None:
     s = get_settings()
     if not s.supabase_url or not s.supabase_service_key:
@@ -61,23 +70,31 @@ async def _track_kie(model_id: str, media_kind: str, duration_ms: int, status: s
             "Prefer": "return=minimal",
         }
         base = s.supabase_url.rstrip("/")
-        # Obtener precio
         async with httpx.AsyncClient(timeout=5) as client:
-            pr = await client.get(
-                f"{base}/rest/v1/model_pricing?model=eq.{model_key}&provider=eq.kie&limit=1",
-                headers=headers,
-            )
-            pricing = pr.json()[0] if pr.status_code == 200 and pr.json() else {}
-            price_out = float(pricing.get("override_per_1k_out") or pricing.get("price_per_1k_out") or 0)
-            # 1 unidad = tokens_out=1, costo = price_per_1k_out / 1000
-            cost_usd = round(price_out / 1000, 8)
+            # Obtener precio — caché TTL 300s para no golpear model_pricing en cada llamada
+            now = time.monotonic()
+            cached = _PRICING_CACHE.get(model_key)
+            if cached and now - cached[0] < _PRICING_TTL:
+                price_out = cached[1]
+            else:
+                pr = await client.get(
+                    f"{base}/rest/v1/model_pricing?model=eq.{model_key}&provider=eq.kie&limit=1",
+                    headers=headers,
+                )
+                pricing = pr.json()[0] if pr.status_code == 200 and pr.json() else {}
+                price_out = float(pricing.get("override_per_1k_out") or pricing.get("price_per_1k_out") or 0)
+                _PRICING_CACHE[model_key] = (now, price_out)
+            # 1 unidad = tokens_out=1, costo = price_per_1k_out / 1000.
+            # En error no hubo media generada → tokens_out=0 y coste 0.
+            is_error = status != "ok"
+            cost_usd = 0.0 if is_error else round(price_out / 1000, 8)
 
             row = {
                 "session_id": str(uuid.uuid4()),
                 "model": model_key,
                 "provider": "kie",
                 "tokens_in": 0,
-                "tokens_out": 1,
+                "tokens_out": 0 if is_error else 1,
                 "cost_usd": cost_usd,
                 "endpoint": "/generate",
                 "node_type": media_kind,
@@ -96,6 +113,8 @@ async def generate(req: GenerateRequest) -> GenerateResponse:
     t0 = int(time.monotonic() * 1000)
     try:
         parameters: dict[str, Any] = {}
+        if req.seed is not None:
+            parameters["seed"] = int(req.seed)  # consistencia: KIE reusa la semilla (modelos que la soportan)
         if req.aspect:
             parameters["aspect_ratio"] = req.aspect
         if req.duration and req.media_kind == "video":
@@ -161,7 +180,6 @@ async def generate(req: GenerateRequest) -> GenerateResponse:
                 raise  # sin sanitización posible o ya en segundo intento
         duration_ms = int(time.monotonic() * 1000) - t0
         if result.get("url"):
-            import asyncio
             asyncio.create_task(_track_kie(req.model_id, req.media_kind, duration_ms))
         return GenerateResponse(
             url=result["url"],
@@ -171,15 +189,22 @@ async def generate(req: GenerateRequest) -> GenerateResponse:
     except DisallowedModelError as e:
         return GenerateResponse(url="", error=str(e))
     except KieContentError as e:
+        # Registrar el fallo en analytics (status=error, coste 0)
+        duration_ms = int(time.monotonic() * 1000) - t0
+        asyncio.create_task(_track_kie(req.model_id, req.media_kind, duration_ms, status="error", error="CONTENT_BLOCKED: " + e.message))
         logger.warning("generate content blocked (todos los intentos): %s", e.message)
         return GenerateResponse(url="", error="CONTENT_BLOCKED: " + e.message)
     except KieTimeoutError as e:
+        duration_ms = int(time.monotonic() * 1000) - t0
+        asyncio.create_task(_track_kie(req.model_id, req.media_kind, duration_ms, status="error", error=f"timeout {e.timeout_s}s task={e.task_id}"))
         return GenerateResponse(
             url="",
             task_id=e.task_id,
             error=f"KIE timeout {e.timeout_s}s — task aún procesando, reintenta con /generate/retry/{e.task_id}",
         )
     except Exception as e:
+        duration_ms = int(time.monotonic() * 1000) - t0
+        asyncio.create_task(_track_kie(req.model_id, req.media_kind, duration_ms, status="error", error=str(e)))
         logger.error("generate error: %s", e, exc_info=True)
         return GenerateResponse(url="", error=f"Generación falló: {str(e)[:240]}" if str(e) else "Error interno de generación. Inténtalo de nuevo.")
 
@@ -198,7 +223,6 @@ async def retry(task_id: str, req: RetryRequest) -> GenerateResponse:
         result = await client.resume_polling(task_id=task_id, media_kind=req.media_kind)
         duration_ms = int(time.monotonic() * 1000) - t0
         if result.get("url"):
-            import asyncio
             asyncio.create_task(_track_kie(task_id, req.media_kind, duration_ms))
         return GenerateResponse(
             url=result["url"],
@@ -206,12 +230,16 @@ async def retry(task_id: str, req: RetryRequest) -> GenerateResponse:
             stub=result.get("stub", False),
         )
     except KieTimeoutError as e:
+        duration_ms = int(time.monotonic() * 1000) - t0
+        asyncio.create_task(_track_kie(task_id, req.media_kind, duration_ms, status="error", error=f"retry timeout {e.timeout_s}s"))
         return GenerateResponse(
             url="",
             task_id=task_id,
             error=f"Sigue procesando — reintenta en 30s (timeout {e.timeout_s}s)",
         )
     except Exception as e:
+        duration_ms = int(time.monotonic() * 1000) - t0
+        asyncio.create_task(_track_kie(task_id, req.media_kind, duration_ms, status="error", error=str(e)))
         logger.error("retry error: %s", e, exc_info=True)
         return GenerateResponse(url="", task_id=task_id, error=str(e)[:300])
 
@@ -288,6 +316,12 @@ async def compose_logo(req: ComposeLogoRequest):
         return {"url": req.image_url, "logo_applied": False, "error": "image_url no permitida"}
     if not (req.logo_url.startswith("https://") and _proxy_host_ok(req.logo_url)):
         return {"url": req.image_url, "logo_applied": False, "error": "logo_url no permitida"}
+    # H-1: además del whitelist de host, verificar anti-SSRF (resolución IP, rangos privados).
+    for _f, _u in (("image_url", req.image_url), ("logo_url", req.logo_url)):
+        try:
+            _assert_safe_url(_u)
+        except _SSRFBlockedError as _e:
+            return {"url": req.image_url, "logo_applied": False, "error": f"{_f} bloqueada anti-SSRF: {_e}"}
     _MAX = 25 * 1024 * 1024
     async def _dl(c, url, cap):
         buf = b""

@@ -15,7 +15,7 @@ import httpx
 from typing import Any, Optional
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.services.claude_client import ClaudeClient
 from app.services import prompt_brain
@@ -199,11 +199,11 @@ class AgentContext(BaseModel):
     platform: Optional[str] = None             # plataforma principal (IG/TikTok/…)
     cta: Optional[str] = None                  # tipo de CTA preferido
     sector: Optional[str] = None               # sector/industria
-    instructions: Optional[str] = None         # instrucciones maestras del usuario
+    instructions: Optional[str] = Field(None, max_length=2000)  # H-7: cap anti prompt-injection
 
 
 class AgentRunRequest(BaseModel):
-    brief: str                                   # lo que escribió el usuario
+    brief: str = Field("", max_length=4000)       # H-7: lo que escribió el usuario (cap)
     agent: AgentContext
     outputType: str = "image"                    # "image" | "video"
     client: Optional[ClientContext] = None
@@ -539,7 +539,7 @@ BATCH_MAX = 30
 
 
 class BatchRunRequest(BaseModel):
-    brief: str                              # brief maestro del usuario
+    brief: str = Field("", max_length=4000)  # brief maestro del usuario (cap H-7)
     count: int = 1                          # cuántos prompts generar (1-30)
     agent: AgentContext
     outputType: str = "image"               # "image" | "video"

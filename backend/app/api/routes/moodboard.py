@@ -32,6 +32,16 @@ _MOODBOARDS: dict[str, Moodboard] = {}
 # recolecte antes de terminar (el análisis corre en background, no en el request).
 _AUDIT_TASKS: set[asyncio.Task] = set()
 
+# Lock por moodboard — serializa cada secuencia load→modificar→save y evita
+# el pisado entre usuarios (todo el tráfico pasa por este único backend).
+_LOCKS: dict[str, asyncio.Lock] = {}
+
+
+def _lock(name: str) -> asyncio.Lock:
+    if name not in _LOCKS:
+        _LOCKS[name] = asyncio.Lock()
+    return _LOCKS[name]
+
 
 # ---------------------------------------------------------------------------
 # Supabase helpers (mismo patrón que analytics.py)
@@ -139,7 +149,10 @@ async def _upload_img_to_storage(moodboard_id: str, img_id: str, data_url: str) 
         else:
             ext, ct = "jpg", "image/jpeg"
         img_bytes = _b64.b64decode(b64data)
-        path = f"moodboard-images/{moodboard_id}/{img_id}.{ext}"
+        # M-4: sanitizar ids antes de construir la ruta de Storage (anti path-traversal).
+        import re as _re_mb
+        _safe = lambda v: _re_mb.sub(r"[^A-Za-z0-9_\-]", "", str(v or ""))[:80] or "x"
+        path = f"moodboard-images/{_safe(moodboard_id)}/{_safe(img_id)}.{ext}"
         s = get_settings()
         base = s.supabase_url.rstrip("/")
         bucket = "brand-assets"
@@ -259,7 +272,10 @@ async def _perform_audit(mb: Moodboard) -> None:
         mb.audit_status = "error"
         logger.exception("perform_audit.failed moodboard=%s error=%s", mb.id, exc)
     finally:
-        await _save_mb(mb)
+        # Lock solo en el guardado (la llamada larga a Claude no debe bloquear
+        # otras mutaciones del mismo moodboard mientras audita).
+        async with _lock(mb.id):
+            await _save_mb(mb)
 
 
 @router.get("", response_model=list[Moodboard])
@@ -277,18 +293,21 @@ async def audit_moodboard(req: AuditRequest) -> AuditResponse:
     if not req.images:
         raise HTTPException(400, "Subir al menos una imagen para auditar.")
 
-    mb = await _get_mb(req.moodboard_id) or Moodboard(
-        id=req.moodboard_id,
-        name=req.name or "Untitled",
-        images=[],
-    )
-    mb.name = req.name or mb.name
-    existing_ids = {i.id for i in mb.images}
-    for img in req.images:
-        if img.id not in existing_ids:
-            mb.images.append(img)
-    mb.audit_status = "auditing"
-    await _save_mb(mb)
+    # Lock: la secuencia load→merge imágenes→save no debe entrelazarse con
+    # otro request del mismo moodboard (race condition = imágenes perdidas).
+    async with _lock(req.moodboard_id):
+        mb = await _get_mb(req.moodboard_id) or Moodboard(
+            id=req.moodboard_id,
+            name=req.name or "Untitled",
+            images=[],
+        )
+        mb.name = req.name or mb.name
+        existing_ids = {i.id for i in mb.images}
+        for img in req.images:
+            if img.id not in existing_ids:
+                mb.images.append(img)
+        mb.audit_status = "auditing"
+        await _save_mb(mb)
 
     # Lanzar el análisis en background y RESPONDER YA (status 'auditing').
     # Referencia fuerte en _AUDIT_TASKS para que no lo recolecte el GC.
@@ -318,13 +337,15 @@ async def upsert_moodboard(moodboard_id: str, mb: Moodboard) -> Moodboard:
     """
     if mb.id != moodboard_id:
         raise HTTPException(400, "moodboard_id mismatch")
-    # Preservar manifest/status si el cliente envía 'idle' pero ya hay análisis
-    existing = await _get_mb(moodboard_id)
-    if existing and existing.manifest and not mb.manifest:
-        mb.manifest = existing.manifest
-        if existing.audit_status == "ready":
-            mb.audit_status = "ready"
-    await _save_mb(mb)
+    # Lock: load→merge→save atómico frente a otros requests del mismo moodboard.
+    async with _lock(moodboard_id):
+        # Preservar manifest/status si el cliente envía 'idle' pero ya hay análisis
+        existing = await _get_mb(moodboard_id)
+        if existing and existing.manifest and not mb.manifest:
+            mb.manifest = existing.manifest
+            if existing.audit_status == "ready":
+                mb.audit_status = "ready"
+        await _save_mb(mb)
     return mb
 
 
@@ -346,19 +367,21 @@ async def delete_moodboard(moodboard_id: str) -> dict:
 
 @router.post("/{moodboard_id}/lock", response_model=Moodboard)
 async def toggle_lock(moodboard_id: str, locked: bool) -> Moodboard:
-    mb = await _get_mb(moodboard_id)
-    if not mb:
-        raise HTTPException(404, "Moodboard not found")
-    mb.locked = locked
-    if locked:
-        # Solo un moodboard locked a la vez — in-memory
-        for other_id, other in _MOODBOARDS.items():
-            if other_id != moodboard_id:
-                other.locked = False
-        # Supabase
-        if _sb_available():
-            await _sb_unlock_others(moodboard_id)
-    await _save_mb(mb)
+    # Lock: load→modificar→save atómico para no pisar mutaciones concurrentes.
+    async with _lock(moodboard_id):
+        mb = await _get_mb(moodboard_id)
+        if not mb:
+            raise HTTPException(404, "Moodboard not found")
+        mb.locked = locked
+        if locked:
+            # Solo un moodboard locked a la vez — in-memory
+            for other_id, other in _MOODBOARDS.items():
+                if other_id != moodboard_id:
+                    other.locked = False
+            # Supabase
+            if _sb_available():
+                await _sb_unlock_others(moodboard_id)
+        await _save_mb(mb)
     return mb
 
 

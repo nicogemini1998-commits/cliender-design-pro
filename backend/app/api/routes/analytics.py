@@ -12,7 +12,9 @@ contra la REST API de PostgREST que expone Supabase.
 from __future__ import annotations
 
 import logging
+import time
 from app.core.config import get_settings
+from app.services.http import get_http
 from datetime import datetime, timedelta, timezone
 from math import ceil
 from typing import Any, Optional
@@ -63,38 +65,40 @@ async def _supabase_get(
     headers = _supabase_headers()
     if extra_headers:
         headers.update(extra_headers)
-    async with httpx.AsyncClient(timeout=15) as client:
-        response = await client.get(
-            _supabase_url(table),
-            headers=headers,
-            params=params or {},
-        )
-        try:
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            body = exc.response.text[:500] if exc.response is not None else ""
-            logger.error("Supabase GET %s failed: %s body=%s", table, exc, body)
-            logger.error("Supabase GET %s error: %s", table, body or exc)
-            raise HTTPException(status_code=502, detail="Error de base de datos") from exc
-        return response.json()
+    # Cliente compartido (singleton) — no abrir/cerrar pool por request.
+    response = await get_http().get(
+        _supabase_url(table),
+        headers=headers,
+        params=params or {},
+    )
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        # M-1: nunca loguear el objeto exc completo — httpx incluye headers con el
+        # Authorization: Bearer <service_key>. Solo status + body recortado.
+        body = exc.response.text[:300] if exc.response is not None else ""
+        status = exc.response.status_code if exc.response is not None else 0
+        logger.error("Supabase GET %s failed: status=%s body=%s", table, status, body)
+        raise HTTPException(status_code=502, detail="Error de base de datos") from exc
+    return response.json()
 
 
 async def _supabase_post(table: str, payload: dict[str, Any]) -> dict[str, Any]:
-    async with httpx.AsyncClient(timeout=15) as client:
-        response = await client.post(
-            _supabase_url(table),
-            headers=_supabase_headers(),
-            json=payload,
-        )
-        try:
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            body = exc.response.text[:500] if exc.response is not None else ""
-            logger.error("Supabase POST %s failed: %s body=%s", table, exc, body)
-            logger.error("Supabase POST %s error: %s", table, body or exc)
-            raise HTTPException(status_code=502, detail="Error de base de datos") from exc
-        data = response.json()
-        return data[0] if isinstance(data, list) and data else data
+    # Cliente compartido (singleton) — no abrir/cerrar pool por request.
+    response = await get_http().post(
+        _supabase_url(table),
+        headers=_supabase_headers(),
+        json=payload,
+    )
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        body = exc.response.text[:500] if exc.response is not None else ""
+        logger.error("Supabase POST %s failed: %s body=%s", table, exc, body)
+        logger.error("Supabase POST %s error: %s", table, body or exc)
+        raise HTTPException(status_code=502, detail="Error de base de datos") from exc
+    data = response.json()
+    return data[0] if isinstance(data, list) and data else data
 
 
 async def _supabase_patch(
@@ -103,22 +107,22 @@ async def _supabase_patch(
     payload: dict[str, Any],
 ) -> dict[str, Any]:
     params = {k: f"eq.{v}" for k, v in row_filter.items()}
-    async with httpx.AsyncClient(timeout=15) as client:
-        response = await client.patch(
-            _supabase_url(table),
-            headers=_supabase_headers(),
-            params=params,
-            json=payload,
-        )
-        try:
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            body = exc.response.text[:500] if exc.response is not None else ""
-            logger.error("Supabase PATCH %s failed: %s body=%s", table, exc, body)
-            logger.error("Supabase PATCH %s error: %s", table, body or exc)
-            raise HTTPException(status_code=502, detail="Error de base de datos") from exc
-        data = response.json()
-        return data[0] if isinstance(data, list) and data else data
+    # Cliente compartido (singleton) — no abrir/cerrar pool por request.
+    response = await get_http().patch(
+        _supabase_url(table),
+        headers=_supabase_headers(),
+        params=params,
+        json=payload,
+    )
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        body = exc.response.text[:500] if exc.response is not None else ""
+        logger.error("Supabase PATCH %s failed: %s body=%s", table, exc, body)
+        logger.error("Supabase PATCH %s error: %s", table, body or exc)
+        raise HTTPException(status_code=502, detail="Error de base de datos") from exc
+    data = response.json()
+    return data[0] if isinstance(data, list) and data else data
 
 
 # ---------------------------------------------------------------------------
@@ -238,8 +242,22 @@ class AlertUpdateRequest(BaseModel):
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+# Caché de precios — evita golpear model_pricing en cada track (TTL 300s).
+# Clave: "provider/model" → (timestamp_monotonic, (price_in, price_out)).
+_PRICING_CACHE: dict[str, tuple[float, tuple[float, float]]] = {}
+_PRICING_TTL = 300.0
+
+
 async def _fetch_pricing(model: str, provider: str) -> tuple[float, float]:
-    """Retorna (price_in, price_out) efectivos — override si existe, else base."""
+    """Retorna (price_in, price_out) efectivos — override si existe, else base.
+
+    Cachea el resultado 300s por modelo para no consultar Supabase en cada track.
+    """
+    cache_key = f"{provider}/{model}"
+    now = time.monotonic()
+    cached = _PRICING_CACHE.get(cache_key)
+    if cached and now - cached[0] < _PRICING_TTL:
+        return cached[1]
     try:
         rows = await _supabase_get(
             "model_pricing",
@@ -250,7 +268,9 @@ async def _fetch_pricing(model: str, provider: str) -> tuple[float, float]:
         row = rows[0]
         price_in = row.get("override_per_1k_in") or row.get("price_per_1k_in") or 0.0
         price_out = row.get("override_per_1k_out") or row.get("price_per_1k_out") or 0.0
-        return float(price_in), float(price_out)
+        result = (float(price_in), float(price_out))
+        _PRICING_CACHE[cache_key] = (now, result)
+        return result
     except Exception as exc:
         logger.warning("No se pudo obtener pricing para %s/%s: %s", model, provider, exc)
         return 0.0, 0.0
@@ -441,6 +461,19 @@ async def get_history(
         "limit": str(limit),
         "offset": str(offset),
     }
+    # H-4: model/provider/fechas van a filtros PostgREST. Validar formato evita
+    # inyección de operadores (or(), not., etc.) en la query.
+    import re as _re_an
+    _SAFE_IDENT = _re_an.compile(r"^[A-Za-z0-9_.\-]{1,80}$")
+    _SAFE_DATE = _re_an.compile(r"^[0-9T:\-+.Zz ]{1,40}$")
+    if model and not _SAFE_IDENT.match(model):
+        raise HTTPException(status_code=400, detail="model inválido")
+    if provider and not _SAFE_IDENT.match(provider):
+        raise HTTPException(status_code=400, detail="provider inválido")
+    if from_date and not _SAFE_DATE.match(from_date):
+        raise HTTPException(status_code=400, detail="from_date inválido")
+    if to_date and not _SAFE_DATE.match(to_date):
+        raise HTTPException(status_code=400, detail="to_date inválido")
     if model:
         params["model"] = f"eq.{model}"
     if provider:
@@ -538,6 +571,10 @@ async def update_pricing(model: str, body: PricingUpdateRequest) -> PricingRow:
         updated = await _supabase_patch("model_pricing", {"model": model}, payload)
     except httpx.HTTPStatusError as exc:
         raise HTTPException(status_code=exc.response.status_code, detail=str(exc)) from exc
+
+    # Invalidar la caché de precios de este modelo (cualquier provider).
+    for key in [k for k in _PRICING_CACHE if k.endswith(f"/{model}")]:
+        _PRICING_CACHE.pop(key, None)
 
     return PricingRow(
         id=str(updated.get("id", "")),
