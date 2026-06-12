@@ -230,24 +230,54 @@ window.__moodboards = {
     }
   },
 
-  /** Upsert por moodboard (debounced por id, no full collection). */
+  /** Upsert por moodboard (debounced por id, no full collection).
+   * Retry 1s/3s + aviso al agotar — un manifest de un audit de 3-6 min no puede
+   * perderse en silencio. `_gens` invalida reintentos viejos si llega un upsert
+   * o remove más nuevo del mismo id (no regresionar el server con payload viejo). */
   upsert(mb) {
     if (!mb || !mb.id) return;
     const id = mb.id;
     clearTimeout(this._timers[id]);
+    this._gens = this._gens || {};
+    const gen = (this._gens[id] = (this._gens[id] || 0) + 1);
     this._timers[id] = setTimeout(() => {
-      fetch(`${this._api()}/moodboards/${encodeURIComponent(id)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(window.__moodboards._toServer(mb)),
-      }).catch(() => {});
+      const api = this._api();
+      const payload = JSON.stringify(window.__moodboards._toServer(mb));
+      const BACKOFF_MS = [1000, 3000];
+      const attempt = (n) => {
+        if (window.__moodboards._gens[id] !== gen) return; // supersedido
+        fetch(api + "/moodboards/" + encodeURIComponent(id), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: payload,
+        })
+          .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); })
+          .catch(() => {
+            if (n < BACKOFF_MS.length) { setTimeout(() => attempt(n + 1), BACKOFF_MS[n]); return; }
+            window.__notify && window.__notify({
+              kind: "error", icon: "⚠",
+              title: "Moodboard no sincronizado",
+              body: '"' + (mb.name || id) + '" no se pudo guardar en el servidor — toca el moodboard de nuevo para reintentar.',
+            });
+          });
+      };
+      attempt(0);
     }, 800);
   },
 
   remove(id) {
     if (!id) return;
     clearTimeout(this._timers[id]);
-    fetch(`${this._api()}/moodboards/${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => {});
+    this._gens = this._gens || {};
+    this._gens[id] = (this._gens[id] || 0) + 1; // invalida upserts en vuelo de este id
+    const BACKOFF_MS = [1000, 3000];
+    const attempt = (n) => {
+      fetch(this._api() + "/moodboards/" + encodeURIComponent(id), { method: "DELETE" })
+        .then((r) => { if (!r.ok && r.status !== 404) throw new Error("HTTP " + r.status); }) // 404 = ya borrado = éxito
+        .catch(() => { if (n < BACKOFF_MS.length) setTimeout(() => attempt(n + 1), BACKOFF_MS[n]); });
+      // Sin notify: el poll re-emite el DELETE cada 30s vía tombstone — avisar sería ruido.
+    };
+    attempt(0);
   },
 
   poll(apply, intervalMs = 30000) {

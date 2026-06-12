@@ -726,19 +726,22 @@ function VaultButton({ lockedName, onClick }) {
 function moodboardReducer(state, action) {
   switch (action.type) {
     case "CREATE":
-      return [...state, {id:action.id,name:action.name,images:[],manifest:null,auditStatus:"idle",locked:false}];
+      return [...state, {id:action.id,name:action.name,images:[],manifest:null,auditStatus:"idle",locked:false,updatedAt:Date.now()}];
+    // updatedAt en cada mutación de contenido: el merge del poll (tr >= tl) debe
+    // preferir lo LOCAL recién editado mientras el PUT con retry sigue en vuelo —
+    // sin esto, el poll de 30s pisaba la edición con la copia vieja del server.
     case "RENAME":
-      return state.map(m=>m.id===action.id?{...m,name:action.name}:m);
+      return state.map(m=>m.id===action.id?{...m,name:action.name,updatedAt:Date.now()}:m);
     case "ADD_IMAGES":
-      return state.map(m=>{ if(m.id!==action.id)return m; const ids=new Set(m.images.map(i=>i.id)); return{...m,images:[...m.images,...action.images.filter(i=>!ids.has(i.id))]}; });
+      return state.map(m=>{ if(m.id!==action.id)return m; const ids=new Set(m.images.map(i=>i.id)); return{...m,images:[...m.images,...action.images.filter(i=>!ids.has(i.id))],updatedAt:Date.now()}; });
     case "REMOVE_IMAGE":
-      return state.map(m=>m.id===action.id?{...m,images:m.images.filter(i=>i.id!==action.imageId)}:m);
+      return state.map(m=>m.id===action.id?{...m,images:m.images.filter(i=>i.id!==action.imageId),updatedAt:Date.now()}:m);
     case "BEGIN_AUDIT":
       return state.map(m=>m.id===action.id?{...m,auditStatus:"auditing"}:m);
     case "SET_MANIFEST": {
       const found = state.some(m => m.id === action.id);
       if (!found) console.warn("[vault reducer] SET_MANIFEST id not found:", action.id, "available:", state.map(m=>m.id));
-      return state.map(m=>m.id===action.id?{...m,auditStatus:"ready",manifest:{...action.manifest,moodboardId:m.id}}:m);
+      return state.map(m=>m.id===action.id?{...m,auditStatus:"ready",manifest:{...action.manifest,moodboardId:m.id},updatedAt:Date.now()}:m);
     }
     case "SET_AUDIT_STATUS":
       return state.map(m=>m.id===action.id?{...m,auditStatus:action.status}:m);

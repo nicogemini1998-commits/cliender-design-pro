@@ -25,16 +25,16 @@ from app.core.config import get_settings
 from app.services.http import aclose_http
 
 _RL: dict[str, list[float]] = defaultdict(list)
-_RL_PREFIXES = ("/generate", "/agent", "/moodboards", "/video")
+_RL_PREFIXES = ("/generate", "/agent", "/moodboards", "/video", "/chat", "/store", "/gallery")
 _RL_MAX = 25
 _RL_WINDOW = 60.0
 # Endpoints caros (Supabase/Pillow/Claude Vision): limite propio mas estricto.
-_RL_HEAVY = ("/generate/persist-media", "/generate/compose-logo", "/moodboards/audit", "/video/edit", "/video/transcribe")
+_RL_HEAVY = ("/generate/persist-media", "/generate/compose-logo", "/moodboards/audit", "/video/edit", "/video/transcribe", "/chat/render", "/chat/storyboard", "/chat/edit-plan")
 _RL_HEAVY_MAX = 20
 # media-proxy es GET de assets ya generados → exento.
 _RL_EXEMPT = ("/generate/media-proxy",)
 # Prefijos protegidos por API key (cuando CDPRO_API_KEY esta definida) — TODOS los metodos.
-_AUTH_PREFIXES = ("/generate", "/agent", "/moodboards", "/analytics", "/gallery", "/store", "/video")
+_AUTH_PREFIXES = ("/generate", "/agent", "/moodboards", "/analytics", "/gallery", "/store", "/video", "/chat")
 _RL_LAST_PRUNE = [0.0]
 _MAX_BODY = 6 * 1024 * 1024  # 6 MB — techo duro de payload (C-2): evita DoS/abuso de storage
 _GET_RL_MAX = 90              # límite de lectura/min por IP (H-3)

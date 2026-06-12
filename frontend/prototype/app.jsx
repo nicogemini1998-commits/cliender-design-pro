@@ -1338,10 +1338,22 @@ function App() {
     const userEmail = localStorage.getItem("cdpro-user-email") || "";
     const enriched = { ...item, addedBy: userEmail };
     setGallery(g => [enriched, ...g.filter(x => x.id !== enriched.id)]);
-    fetch(_galleryApi + "/gallery/add", {
+    // Retry con backoff: esto persiste cada generación PAGADA de Kid.ai. Antes era
+    // un intento único con .catch(()=>{}) — un 429/500 y el item solo vivía en RAM.
+    // /gallery/add es idempotente por id → reintentar es seguro.
+    const BACKOFF = [1500, 4000];
+    const add = (n) => fetch(_galleryApi + "/gallery/add", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(enriched),
-    }).catch(() => {});
+    }).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); })
+      .catch(() => {
+        if (n < BACKOFF.length) { setTimeout(() => add(n + 1), BACKOFF[n]); return; }
+        window.__notify?.({
+          kind: "error", icon: "⚠", title: "Galería no sincronizada",
+          body: "La generación no se pudo guardar en el servidor — descárgala antes de recargar la página.",
+        });
+      });
+    add(0);
   }, [_galleryApi]);
 
   // Eliminar item de la galería compartida — verificado: si el backend falla, reintenta 1 vez
@@ -2482,6 +2494,10 @@ function App() {
         ].filter((u) => typeof u === "string" && (u.startsWith("http") || u.startsWith("data:")));
         const _referenceImages = _refImages.length ? _refImages : null;
 
+        // Timeout duro: sin esto, un backend colgado dejaba el nodo en "running" PARA SIEMPRE.
+        // 180s cubre al agente con visión + batch de 10 prompts; el abort cae en el catch.
+        const _agentAbort = new AbortController();
+        const _agentTimer = setTimeout(() => _agentAbort.abort("agent_timeout"), 180000);
         try {
           if (isBatchMode) {
             // ===== MODO BATCH =====
@@ -2489,6 +2505,7 @@ function App() {
 
             const batchRes = await fetch(`${window.CDPRO_CONFIG.API_BASE}/agent/batch_run`, {
               method: "POST",
+              signal: _agentAbort.signal,
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 brief: rawBrief,
@@ -2499,12 +2516,22 @@ function App() {
                 reference_images: _referenceImages,
               }),
             });
+            if (!batchRes.ok) throw new Error("batch_run HTTP " + batchRes.status);
             const batchJson = await batchRes.json();
-            const batchPrompts = batchJson.prompts || [];
+            // Igual que el modo normal: si el backend reporta error, NO aceptar su
+            // fallback (agent.py devuelve 200 + prompts=[brief CRUDO] + error en excepciones).
+            const batchPrompts = batchJson.error ? [] : (batchJson.prompts || []);
 
             if (batchPrompts.length === 0) {
-              finalBrief = rawBrief;
-              patchNodeData(nodeId, { status: "done", agentOutput: null });
+              // Antes: finalBrief = rawBrief y nodo 'done' → la cascada corría con el
+              // brief CRUDO y gastaba créditos Kid.ai pese al fallo del agente.
+              _agentFailedLocal = true;
+              patchNodeData(nodeId, { status: "error", agentOutput: null, _agentFailed: true });
+              window.__notify?.({
+                kind: "error", icon: "✖",
+                title: agentObj.name + " falló (batch) — cascada detenida",
+                body: (batchJson.error || "El agente no devolvió prompts.") + " Downstream NO ejecutado (evita gasto Kid.ai).",
+              });
             } else {
               const allPromptsText = batchPrompts.map((p) => `${p.index}. ${p.prompt}`).join("\n");
               // Lista estructurada para el modal "Ver prompts" con tracking en tiempo real.
@@ -2550,6 +2577,7 @@ function App() {
             // ===== MODO NORMAL =====
             const res = await fetch(`${window.CDPRO_CONFIG.API_BASE}/agent/run`, {
               method: "POST",
+              signal: _agentAbort.signal,
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 brief: rawBrief,
@@ -2576,11 +2604,14 @@ function App() {
         } catch (err) {
           _agentFailedLocal = true;
           patchNodeData(nodeId, { status: "error", agentOutput: null, _agentFailed: true });
+          const _isTimeout = err && (err.name === "AbortError" || String(err).includes("agent_timeout"));
           window.__notify?.({
-            kind: "error", icon: "✖", title: agentObj.name + " offline — cascada detenida",
-            body: "Backend no disponible. Downstream NO ejecutado (evita gasto Kid.ai).",
+            kind: "error", icon: "✖",
+            title: agentObj.name + (_isTimeout ? " no respondió (timeout)" : " offline") + " — cascada detenida",
+            body: (_isTimeout ? "180s sin respuesta del backend. " : "Backend no disponible. ") + "Downstream NO ejecutado (evita gasto Kid.ai).",
           });
         } finally {
+          clearTimeout(_agentTimer);
           setRunningNodes((s) => { const n = new Set(s); n.delete(nodeId); return n; });
         }
 
@@ -2927,15 +2958,30 @@ function App() {
       }
       // Persistir a Supabase — las URLs de KIE expiran ~24-48h. Tras esto la URL no muere.
       if (url) {
-        try {
-          const API_BASE = window.CDPRO_CONFIG.API_BASE;
-          const pr = await fetch(`${API_BASE}/generate/persist-media`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url, kind: node.type === "video" ? "video" : "image" }),
+        // Persistir en Supabase con 1 reintento: la URL de KIE caduca en 24-48h —
+        // si ambos intentos fallan, avisar para que el usuario descargue el asset.
+        const API_BASE = window.CDPRO_CONFIG.API_BASE;
+        let _persisted = false;
+        for (let _try = 0; _try < 2 && !_persisted; _try++) {
+          try {
+            const pr = await fetch(`${API_BASE}/generate/persist-media`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url, kind: node.type === "video" ? "video" : "image" }),
+            });
+            if (!pr.ok) throw new Error("HTTP " + pr.status);
+            const pd = await pr.json();
+            if (pd.url && pd.persisted) { url = pd.url; _persisted = true; }
+            else break; // respuesta válida pero no persistible (p.ej. url no permitida): no reintentar
+          } catch (_) {
+            if (_try === 0) await new Promise(r => setTimeout(r, 1500));
+          }
+        }
+        if (!_persisted && /kie|tempfile|bytedance|byteplus/i.test(url)) {
+          window.__notify?.({
+            kind: "info", icon: "⏳", title: "Asset con URL temporal",
+            body: "No se pudo archivar en el servidor — descárgalo pronto, la URL del proveedor caduca en ~24h.",
           });
-          const pd = await pr.json();
-          if (pd.url && pd.persisted) url = pd.url;
-        } catch (_) { /* si falla, conservar URL temporal */ }
+        }
       }
       newItems.push({
         id: "g-" + Math.random().toString(36).slice(2, 8),

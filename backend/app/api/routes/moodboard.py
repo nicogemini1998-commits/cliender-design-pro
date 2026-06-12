@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -84,6 +85,16 @@ def _row_to_moodboard(row: dict) -> Moodboard:
         locked=row.get("locked", False),
     )
 
+
+_MB_ID_RE = re.compile(r"^[A-Za-z0-9_\-]{1,80}$")
+
+
+def _check_mb_id(moodboard_id: str) -> None:
+    """H-4 para moodboards: el id viaja interpolado en filtros PostgREST
+    (?id=eq.{id}, ?id=neq.{id}) — un id con '&' o ',' inyectaría parámetros.
+    Mismo patrón que la validación ya aplicada en analytics."""
+    if not _MB_ID_RE.match(moodboard_id or ""):
+        raise HTTPException(400, "moodboard_id inválido")
 
 async def _sb_get(moodboard_id: str) -> Moodboard | None:
     try:
@@ -175,8 +186,12 @@ async def _upload_img_to_storage(moodboard_id: str, img_id: str, data_url: str) 
     return None
 
 
-async def _sb_list_all(limit: int = 200) -> list[Moodboard]:
-    """Lista moodboards incluyendo imágenes (solo URLs, sin base64)."""
+async def _sb_list_all(limit: int = 200) -> list[Moodboard] | None:
+    """Lista moodboards (solo URLs, sin base64). None = Supabase falló (≠ lista vacía).
+
+    Devolver [] en error hacía que el fallback in-memory de list_moodboards fuera
+    código muerto y que un blip de Supabase pareciera "todos los moodboards borrados".
+    """
     try:
         async with httpx.AsyncClient(timeout=20) as client:
             r = await client.get(
@@ -199,7 +214,7 @@ async def _sb_list_all(limit: int = 200) -> list[Moodboard]:
                 return result
     except Exception as exc:
         logger.warning("supabase list_all error: %s", exc)
-    return []
+    return None
 
 
 async def _sb_list_locked() -> list[Moodboard]:
@@ -297,6 +312,7 @@ async def list_moodboards() -> list[Moodboard]:
 
 @router.post("/audit", response_model=AuditResponse)
 async def audit_moodboard(req: AuditRequest) -> AuditResponse:
+    _check_mb_id(req.moodboard_id)
     if not req.images:
         raise HTTPException(400, "Subir al menos una imagen para auditar.")
 
@@ -327,6 +343,7 @@ async def audit_moodboard(req: AuditRequest) -> AuditResponse:
 
 @router.get("/{moodboard_id}", response_model=Moodboard)
 async def get_moodboard(moodboard_id: str) -> Moodboard:
+    _check_mb_id(moodboard_id)
     mb = await _get_mb(moodboard_id)
     if not mb:
         raise HTTPException(404, "Moodboard not found")
@@ -342,6 +359,7 @@ async def upsert_moodboard(moodboard_id: str, mb: Moodboard) -> Moodboard:
     el usuario dispare el Vision_Auditor. Si el moodboard ya tiene manifest
     y audit_status='ready', se preserva.
     """
+    _check_mb_id(moodboard_id)
     if mb.id != moodboard_id:
         raise HTTPException(400, "moodboard_id mismatch")
     # Lock: load→merge→save atómico frente a otros requests del mismo moodboard.
@@ -358,15 +376,33 @@ async def upsert_moodboard(moodboard_id: str, mb: Moodboard) -> Moodboard:
 
 @router.delete("/{moodboard_id}")
 async def delete_moodboard(moodboard_id: str) -> dict:
-    """Borra un moodboard de Supabase + in-memory."""
+    """Borra un moodboard de Supabase + in-memory + sus imágenes de Storage."""
+    _check_mb_id(moodboard_id)
     _MOODBOARDS.pop(moodboard_id, None)
     if _sb_available():
         try:
-            async with httpx.AsyncClient(timeout=8) as client:
+            async with httpx.AsyncClient(timeout=15) as client:
                 await client.delete(
                     _sb_url(f"?id=eq.{moodboard_id}"),
                     headers=_sb_headers(),
                 )
+                # Best-effort: borrar también los archivos de moodboard-images/{id}/
+                # — sin esto el bucket crece para siempre con imágenes huérfanas.
+                base = get_settings().supabase_url.rstrip("/")
+                lst = await client.post(
+                    f"{base}/storage/v1/object/list/brand-assets",
+                    headers={**_sb_headers(), "Content-Type": "application/json"},
+                    json={"prefix": f"moodboard-images/{moodboard_id}/", "limit": 200},
+                )
+                if lst.status_code == 200 and isinstance(lst.json(), list):
+                    names = [f"moodboard-images/{moodboard_id}/{o['name']}" for o in lst.json() if isinstance(o, dict) and o.get("name")]
+                    if names:
+                        await client.request(
+                            "DELETE",
+                            f"{base}/storage/v1/object/brand-assets",
+                            headers={**_sb_headers(), "Content-Type": "application/json"},
+                            json={"prefixes": names},
+                        )
         except Exception as exc:
             logger.warning("supabase delete error: %s", exc)
     return {"ok": True, "id": moodboard_id}
@@ -374,6 +410,7 @@ async def delete_moodboard(moodboard_id: str) -> dict:
 
 @router.post("/{moodboard_id}/lock", response_model=Moodboard)
 async def toggle_lock(moodboard_id: str, locked: bool) -> Moodboard:
+    _check_mb_id(moodboard_id)
     # Lock: load→modificar→save atómico para no pisar mutaciones concurrentes.
     async with _lock(moodboard_id):
         mb = await _get_mb(moodboard_id)

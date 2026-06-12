@@ -9,15 +9,16 @@ PUT  /store/{collection}  → guarda el array completo (full replace)
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
 
-import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.core.config import get_settings
+from app.services.http import get_http
 
 router = APIRouter(prefix="/store", tags=["store"])
 logger = logging.getLogger(__name__)
@@ -25,6 +26,16 @@ logger = logging.getLogger(__name__)
 # Colecciones compartidas permitidas (whitelist). Cada una → un .json en Supabase.
 _COLLECTIONS = {"projects", "moodboards", "agents", "flow-templates", "clients"}
 _MAX_ITEMS = 2000
+
+# Lock por colección — serializa las escrituras al JSON compartido y evita
+# que dos usuarios se pisen (todo el tráfico pasa por este único backend).
+_LOCKS: dict[str, asyncio.Lock] = {}
+
+
+def _lock(name: str) -> asyncio.Lock:
+    if name not in _LOCKS:
+        _LOCKS[name] = asyncio.Lock()
+    return _LOCKS[name]
 
 
 def _headers() -> dict[str, str]:
@@ -39,11 +50,11 @@ def _url(collection: str) -> str:
 
 async def _load(collection: str) -> list[Any]:
     try:
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.get(_url(collection), headers=_headers())
-            if r.status_code == 200:
-                d = r.json()
-                return d if isinstance(d, list) else []
+        # Cliente compartido (singleton) — no abrir/cerrar pool por request.
+        r = await get_http().get(_url(collection), headers=_headers())
+        if r.status_code == 200:
+            d = r.json()
+            return d if isinstance(d, list) else []
     except Exception as e:  # noqa: BLE001
         logger.warning("store.load %s: %s", collection, e)
     return []
@@ -54,9 +65,8 @@ async def _save(collection: str, items: list[Any]) -> bool:
         h = dict(_headers())
         h["Content-Type"] = "application/json"
         h["x-upsert"] = "true"
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.post(_url(collection), headers=h, content=json.dumps(items, ensure_ascii=False).encode("utf-8"))
-            return r.status_code in (200, 201)
+        r = await get_http().post(_url(collection), headers=h, content=json.dumps(items, ensure_ascii=False).encode("utf-8"))
+        return r.status_code in (200, 201)
     except Exception as e:  # noqa: BLE001
         logger.warning("store.save %s: %s", collection, e)
         return False
@@ -78,6 +88,15 @@ async def get_collection(collection: str):
 async def put_collection(collection: str, payload: StorePayload):
     if collection not in _COLLECTIONS:
         raise HTTPException(status_code=404, detail=f"colección desconocida: {collection}")
-    items = payload.items[:_MAX_ITEMS]
-    ok = await _save(collection, items)
-    return {"ok": ok, "count": len(items)}
+    if len(payload.items) > _MAX_ITEMS:
+        # Antes se truncaba en silencio con ok:true — el usuario creía guardar y perdía la cola.
+        raise HTTPException(status_code=422, detail=f"máximo {_MAX_ITEMS} items por colección")
+    items = payload.items
+    # Lock por colección: serializa escrituras concurrentes al mismo JSON.
+    async with _lock(collection):
+        ok = await _save(collection, items)
+    if not ok:
+        # 502 explícito → el retry/backoff del frontend (config.js) se dispara.
+        # Antes: 200 + {ok:false} → el cliente lo tomaba como éxito → datos perdidos.
+        raise HTTPException(status_code=502, detail=f"no se pudo persistir {collection}")
+    return {"ok": True, "count": len(items)}

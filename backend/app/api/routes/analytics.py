@@ -122,6 +122,10 @@ async def _supabase_patch(
         logger.error("Supabase PATCH %s error: %s", table, body or exc)
         raise HTTPException(status_code=502, detail="Error de base de datos") from exc
     data = response.json()
+    if isinstance(data, list) and not data:
+        # PostgREST devuelve [] cuando el filtro no matchea ninguna fila;
+        # antes esto seguía y reventaba con AttributeError → 500 con traceback.
+        raise HTTPException(status_code=404, detail="fila no encontrada")
     return data[0] if isinstance(data, list) and data else data
 
 
@@ -363,7 +367,7 @@ async def track_call(req: TrackRequest) -> TrackResponse:
         return await _do_track(req)
     except Exception as exc:
         logger.error("track_call error: %s", exc)
-        return TrackResponse(status="error", error=str(exc))
+        return TrackResponse(status="error", error="tracking failed")  # detalle solo en logs (str(exc) incluía la URL de Supabase)
 
 
 @router.get("/summary", response_model=SummaryResponse)

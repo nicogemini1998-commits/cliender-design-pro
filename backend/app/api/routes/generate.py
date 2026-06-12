@@ -392,24 +392,61 @@ def _proxy_host_ok(url: str) -> bool:
     return any(host == d or host.endswith(d) for d in _PROXY_ALLOWED)
 
 
+async def _follow_safe(client: httpx.AsyncClient, url: str, *, max_hops: int = 3) -> str:
+    """Resuelve redirects MANUALMENTE validando cada salto (host whitelist + anti-SSRF).
+
+    follow_redirects=True validaba solo la URL inicial: un host permitido podía
+    responder 302 hacia un host interno (169.254.x, localhost, metadata) y httpx
+    lo seguía en silencio. Aquí cada hop pasa los dos guards o se corta.
+    """
+    cur = url
+    for _ in range(max_hops):
+        if not cur.startswith("https://") or not _proxy_host_ok(cur):
+            raise HTTPException(status_code=400, detail="URL no permitida")
+        _assert_safe_url(cur)
+        r = await client.head(cur, headers={"User-Agent": "CliendreDesignPro/1.0"})
+        if r.status_code in (301, 302, 303, 307, 308):
+            loc = r.headers.get("location", "")
+            cur = str(httpx.URL(cur).join(loc))
+            continue
+        return cur
+    raise HTTPException(status_code=400, detail="demasiados redirects")
+
+
+_PROXY_MAX_BYTES = 30 * 1024 * 1024  # techo del proxy: una imagen/clip razonable, no un ISO
+
+
 @router.get("/media-proxy")
 async def media_proxy(url: str = Query(...)):
     if not url.startswith("https://") or not _proxy_host_ok(url):
         raise HTTPException(status_code=400, detail="URL no permitida")
     try:
-        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as c:
-            r = await c.get(url, headers={"User-Agent": "CliendreDesignPro/1.0"})
-            r.raise_for_status()
-            ctype = r.headers.get("content-type", "application/octet-stream")
+        _assert_safe_url(url)
+    except _SSRFBlockedError:
+        raise HTTPException(status_code=400, detail="URL no permitida")
+    try:
+        async with httpx.AsyncClient(timeout=60, follow_redirects=False) as c:
+            final_url = await _follow_safe(c, url)
+            buf = b""
+            async with c.stream("GET", final_url, headers={"User-Agent": "CliendreDesignPro/1.0"}) as r:
+                r.raise_for_status()
+                ctype = r.headers.get("content-type", "application/octet-stream")
+                async for chunk in r.aiter_bytes():
+                    buf += chunk
+                    if len(buf) > _PROXY_MAX_BYTES:
+                        raise HTTPException(status_code=413, detail="medio demasiado grande")
             return Response(
-                content=r.content,
+                content=buf,
                 media_type=ctype,
                 headers={
                     "Access-Control-Allow-Origin": "*",
                     "Cache-Control": "public, max-age=86400",
+                    "X-Content-Type-Options": "nosniff",
                 },
             )
-    except Exception as e:
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(status_code=502, detail="No se pudo cargar el medio")
 
 
@@ -444,7 +481,7 @@ async def persist_media(req: PersistMediaRequest):
             return {"url": f"{base_url}/storage/v1/object/public/brand-assets/{path_obj}", "persisted": True}
         except Exception as exc:
             logger.error("persist_media.base64 error: %s", exc)
-            return {"url": req.url, "persisted": False, "error": str(exc)}
+            return {"url": req.url, "persisted": False, "error": "no se pudo persistir la imagen"}
 
     if not (req.url.startswith("https://") and _proxy_host_ok(req.url)):
         return {"url": req.url, "persisted": False, "error": "url no permitida"}
@@ -455,9 +492,14 @@ async def persist_media(req: PersistMediaRequest):
     ctype = "video/mp4" if is_video else "image/png"
     cap = 120 * 1024 * 1024 if is_video else 30 * 1024 * 1024
     try:
+        _assert_safe_url(req.url)
+    except _SSRFBlockedError:
+        return {"url": req.url, "persisted": False, "error": "url no permitida"}
+    try:
         buf = b""
-        async with httpx.AsyncClient(timeout=180, follow_redirects=True) as c:
-            async with c.stream("GET", req.url, headers={"User-Agent": "CliendreDesignPro/1.0"}) as r:
+        async with httpx.AsyncClient(timeout=180, follow_redirects=False) as c:
+            final_url = await _follow_safe(c, req.url)
+            async with c.stream("GET", final_url, headers={"User-Agent": "CliendreDesignPro/1.0"}) as r:
                 r.raise_for_status()
                 async for chunk in r.aiter_bytes():
                     buf += chunk

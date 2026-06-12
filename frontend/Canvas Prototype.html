@@ -11,42 +11,58 @@
       var SB_URL = 'https://opjwsdaphsulnpuvpout.supabase.co';
       var ANON   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wandzZGFwaHN1bG5wdXZwb3V0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4ODM4NTgsImV4cCI6MjA5NTQ1OTg1OH0.hnbr1kRUizsa6-9CwPjSXWX1aqKFDjDcgKpLFhHewHg';
 
-      function getSession() {
+      // El token vive en localStorage (Recordarme ON) o sessionStorage (OFF) — paridad con Login.
+      function readTok() {
         try {
-          var raw = localStorage.getItem(LS_KEY);
+          var raw = sessionStorage.getItem(LS_KEY) || localStorage.getItem(LS_KEY);
           if (!raw) return null;
           var tok = JSON.parse(raw);
-          if (!tok || !tok.access_token) return null;
-          if (tok.expires_at && Date.now()/1000 > tok.expires_at - 30) return null;
-          return tok;
+          return (tok && tok.access_token) ? tok : null;
         } catch(e) { return null; }
       }
+      function tokAlive(tok) { return !(tok.expires_at && Date.now()/1000 > tok.expires_at - 60); }
 
       window.__cdproSignOut = function() {
         try {
-          var tok = getSession();
-          if (tok) { fetch(SB_URL+'/auth/v1/logout', { method:'POST', headers:{'apikey':ANON,'Authorization':'Bearer '+tok.access_token} }); }
+          var tok = readTok();
+          if (tok && tokAlive(tok)) { fetch(SB_URL+'/auth/v1/logout', { method:'POST', headers:{'apikey':ANON,'Authorization':'Bearer '+tok.access_token} }); }
         } catch(e) {}
-        localStorage.removeItem(LS_KEY);
-        localStorage.removeItem('cdpro-user-email');
-        localStorage.removeItem('cdpro-user-id');
-        // signout=1: el Login cierra TAMBIÉN la sesión Clerk antes de su auto-redirect (evita bucle).
-        window.location.replace('Login.html?signout=1');
+        localStorage.removeItem(LS_KEY); sessionStorage.removeItem(LS_KEY);
+        // Limpiar TODO el estado por-usuario (máquina compartida: el siguiente no hereda nada).
+        ['cdpro-user-email','cdpro-user-id','cliender-profile','cdp-ctx-client','cdp-ctx-mb'].forEach(function(k){ try{localStorage.removeItem(k);}catch(e){} });
+        window.location.replace('Login.html');
       };
+
+      // Logout coherente multi-pestaña: si otra tab borra el token, esta sale también.
+      window.addEventListener('storage', function(e) {
+        if (e.key === LS_KEY && !e.newValue && !sessionStorage.getItem(LS_KEY)) {
+          window.location.replace('Login.html');
+        }
+      });
 
       // Verificar sesión — ocultar app hasta confirmar
       document.documentElement.style.visibility = 'hidden';
-      // Válido con CUALQUIERA de los dos logins:
-      //  · Supabase (legacy): token sb-*-auth-token vivo.
-      //  · Clerk: el login marca cdpro-user-email/id en localStorage (la sesión real vive en
-      //    cookies de Clerk). Sin esto, Canvas→Login→Canvas rebotaba en bucle (flash blanco/negro).
-      var session = getSession();
+      var tok = readTok();
       var clerkMark = localStorage.getItem('cdpro-user-email') && localStorage.getItem('cdpro-user-id');
-      if (!session && !clerkMark) {
+      if (!tok && !clerkMark) {
         window.location.replace('Login.html');
       } else {
-        if (session) localStorage.setItem('cdpro-user-email', session.user?.email || localStorage.getItem('cdpro-user-email') || '');
+        if (tok && tok.user && tok.user.email) localStorage.setItem('cdpro-user-email', tok.user.email);
         document.documentElement.style.visibility = '';
+        // Token expirado pero con refresh_token → renovar en BACKGROUND, sin expulsar
+        // al usuario en mitad del trabajo (antes la sesión moría a la hora en seco).
+        if (tok && !tokAlive(tok) && tok.refresh_token) {
+          fetch(SB_URL+'/auth/v1/token?grant_type=refresh_token', {
+            method:'POST', headers:{'apikey':ANON,'Content-Type':'application/json'},
+            body: JSON.stringify({refresh_token: tok.refresh_token})
+          }).then(function(r){ return r.json(); }).then(function(d) {
+            if (d && d.access_token) {
+              var session = Object.assign({}, d, {expires_at: Math.floor(Date.now()/1000) + (d.expires_in||3600)});
+              var store = localStorage.getItem(LS_KEY) ? localStorage : sessionStorage;
+              store.setItem(LS_KEY, JSON.stringify(session));
+            }
+          }).catch(function(){});
+        }
       }
     })();
   </script>
