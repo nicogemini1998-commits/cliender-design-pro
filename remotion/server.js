@@ -82,6 +82,8 @@ app.post("/render", async (req, res) => {
         transitionDurationInFrames: Number(s.transitionDurationInFrames) > 0 ? Number(s.transitionDurationInFrames) : undefined,
         kenburns: s.kenburns ? String(s.kenburns) : undefined,
         segments: Array.isArray(s.segments) && s.segments.length ? s.segments : undefined,
+        words: Array.isArray(s.words) && s.words.length ? s.words : undefined,
+        beats: Array.isArray(s.beats) && s.beats.length ? s.beats : undefined,
       })),
       brand: body.brand || {},
       style: body.style || {},
@@ -109,7 +111,10 @@ app.post("/render", async (req, res) => {
       outputLocation,
       inputProps,
       browserExecutable: BROWSER_EXECUTABLE,
-      concurrency: 2,
+      concurrency: 3,
+      // veryfast: ~2-3x menos tiempo de encode que el preset por defecto (medium)
+      // con pérdida visual imperceptible a 1080x1920 — el render ya no "tarda tanto".
+      x264Preset: "veryfast",
       chromiumOptions: { gl: "swiftshader" },
     });
 

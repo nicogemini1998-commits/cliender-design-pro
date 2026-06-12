@@ -147,7 +147,7 @@ services:
     shm_size: "1gb"           # M3 CRÍTICO: Chromium headless necesita /dev/shm grande
                               # (default 64MB causa crashes "Target closed" en renders)
     mem_limit: 2560m
-    cpus: 2
+    cpus: 3
     env_file:
       - .env.cdpro
     ports:

@@ -9,6 +9,7 @@ import {
   useVideoConfig,
   Audio,
   staticFile,
+  spring,
 } from "remotion";
 
 export const INTRO_FRAMES = 50;
@@ -430,6 +431,126 @@ function TimedCaptions({ segments, accent, frame, fps, letterbox }) {
   return <CaptionPill text={seg.text} accent={accent} opacity={opacity} rise={rise} letterbox={letterbox} />;
 }
 
+// ── Subtítulos TIKTOK — karaoke palabra a palabra con words [{start,end,word}] ──
+// Agrupa en líneas cortas (máx 3 palabras o corte en silencio) y resalta la
+// palabra ACTIVA con pop. Tres vestidos: boxed (CapCut), bubble (globo cartoon),
+// neon (glow). El chunk entra con spring — la sensación After Effects que pedía Nico.
+function chunkWords(words, maxWords = 3, gapBreak = 0.6) {
+  const chunks = [];
+  let cur = [];
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    const prev = cur[cur.length - 1];
+    if (cur.length && (cur.length >= maxWords || w.start - prev.end > gapBreak)) {
+      chunks.push(cur);
+      cur = [];
+    }
+    cur.push(w);
+  }
+  if (cur.length) chunks.push(cur);
+  return chunks.map((ws) => ({ start: ws[0].start, end: ws[ws.length - 1].end + 0.12, words: ws }));
+}
+
+const TIKTOK_VARIANTS = new Set(["boxed", "bubble", "neon"]);
+
+function TikTokCaptions({ words, accent, frame, fps, letterbox, variant }) {
+  const chunks = React.useMemo(() => chunkWords(words), [words]);
+  const t = frame / fps;
+  const chunk = chunks.find((c) => t >= c.start && t < c.end + 0.05);
+  if (!chunk) return null;
+  const local = frame - Math.round(chunk.start * fps);
+  const pop = spring({ frame: Math.max(0, local), fps, config: { damping: 11, stiffness: 240, mass: 0.6 } });
+  const scaleIn = 0.82 + 0.18 * pop;
+
+  const wordSpan = (w, i) => {
+    const active = t >= w.start && t < w.end + 0.05;
+    const wLocal = frame - Math.round(w.start * fps);
+    const wPop = active
+      ? interpolate(wLocal, [0, 4, 10], [0.92, 1.16, 1.08], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
+      : 1;
+    const base = {
+      display: "inline-block",
+      margin: "0 7px",
+      transform: `scale(${wPop})${variant === "bubble" && active ? " rotate(-2deg)" : ""}`,
+      transition: "none",
+    };
+    if (variant === "boxed") {
+      return (
+        <span key={i} style={{
+          ...base,
+          color: "#fff",
+          background: active ? accent : "transparent",
+          borderRadius: 14,
+          padding: active ? "4px 16px" : "4px 2px",
+          WebkitTextStroke: "2px rgba(0,0,0,0.85)",
+          textShadow: "0 3px 0 rgba(0,0,0,0.55), 0 6px 22px rgba(0,0,0,0.6)",
+        }}>{w.word}</span>
+      );
+    }
+    if (variant === "bubble") {
+      return (
+        <span key={i} style={{ ...base, color: active ? accent : "#0A0A0F" }}>{w.word}</span>
+      );
+    }
+    // neon
+    return (
+      <span key={i} style={{
+        ...base,
+        color: active ? "#fff" : "rgba(255,255,255,0.92)",
+        textShadow: active
+          ? `0 0 6px #fff, 0 0 18px ${accent}, 0 0 48px ${accent}, 0 0 80px ${accent}`
+          : `0 0 12px ${accent}, 0 0 34px ${accent}66`,
+      }}>{w.word}</span>
+    );
+  };
+
+  const lineStyle = {
+    fontFamily: "Geist, 'Helvetica Neue', system-ui, sans-serif",
+    fontSize: variant === "bubble" ? 54 : 58,
+    fontWeight: 800,
+    lineHeight: 1.25,
+    textTransform: variant === "boxed" ? "uppercase" : "none",
+    letterSpacing: "0.01em",
+    textAlign: "center",
+    maxWidth: "100%",
+  };
+
+  return (
+    <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", padding: `0 40px ${letterbox ? 250 : 210}px`, zIndex: 46 }}>
+      <div style={{ transform: `scale(${scaleIn})`, transformOrigin: "center bottom" }}>
+        {variant === "bubble" ? (
+          <div style={{
+            ...lineStyle,
+            background: "#fff",
+            border: "5px solid #0A0A0F",
+            borderRadius: 26,
+            boxShadow: "7px 9px 0 rgba(0,0,0,0.55)",
+            padding: "14px 28px",
+          }}>{chunk.words.map(wordSpan)}</div>
+        ) : (
+          <div style={lineStyle}>{chunk.words.map(wordSpan)}</div>
+        )}
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// ── Punch-in automático: micro-zoom en cada beat del habla (los silencios que
+// preceden a una frase marcan el golpe). 1→1.07 en 5f, vuelve en 17f — el
+// dinamismo "TikTok" que hace que un plano estático respire. ──
+function punchScale(beats, frame, fps) {
+  if (!Array.isArray(beats) || !beats.length) return 1;
+  let s = 1;
+  for (const b of beats) {
+    const d = frame - Math.round(b * fps);
+    if (d >= 0 && d < 22) {
+      const f = d <= 5 ? d / 5 : Math.max(0, 1 - (d - 5) / 17);
+      s = Math.max(s, 1 + 0.07 * f);
+    }
+  }
+  return s;
+}
+
 function isVideoScene(scene) {
   if (scene && typeof scene.kind === "string") return scene.kind.toLowerCase() === "video";
   const u = String((scene && scene.url) || "").split("?")[0].toLowerCase();
@@ -454,7 +575,7 @@ function SceneClip({ scene, index, accent, transition, td, look, style }) {
     <AbsoluteFill style={{ background: "#000" }}>
       <AbsoluteFill style={{ background: "#000", overflow: "hidden", ...wrapper }}>
         {/* Capa de media con color grade */}
-        <AbsoluteFill style={{ filter: look.filter === "none" ? undefined : look.filter }}>
+        <AbsoluteFill style={{ filter: look.filter === "none" ? undefined : look.filter, transform: style.autopunch && isVideo ? `scale(${punchScale(scene.beats, frame, fps)})` : undefined }}>
           {isVideo ? (
             <OffthreadVideo src={scene.url} muted={scene.muted !== false} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           ) : (
@@ -463,11 +584,21 @@ function SceneClip({ scene, index, accent, transition, td, look, style }) {
         </AbsoluteFill>
         <SplitTone look={look} />
         <Vignette amount={style.vignette * (look.vignetteBoost || 1)} lift={look.liftBlacks} />
-        {Array.isArray(scene.segments) && scene.segments.length ? (
+        {Array.isArray(scene.words) && scene.words.length && TIKTOK_VARIANTS.has(style.captions) ? (
+          <TikTokCaptions words={scene.words} accent={accent} frame={frame} fps={fps} letterbox={style.letterbox} variant={style.captions} />
+        ) : Array.isArray(scene.segments) && scene.segments.length ? (
           <TimedCaptions segments={scene.segments} accent={accent} frame={frame} fps={fps} letterbox={style.letterbox} />
         ) : (
           <CinematicCaption text={scene.caption} accent={accent} frame={frame} fps={fps} letterbox={style.letterbox} sceneDur={durationInFrames} />
         )}
+        {/* SFX sutil en cada beat — acompaña el punch-in */}
+        {style.autopunch && style.sfxOn && isVideo && Array.isArray(scene.beats)
+          ? scene.beats.map((b, i) => (
+              <Sequence key={`beat${i}`} from={Math.max(0, Math.round(b * fps) - 2)} durationInFrames={Math.round(fps * 0.8)}>
+                <Audio src={staticFile("sfx/click.wav")} volume={0.28} />
+              </Sequence>
+            ))
+          : null}
       </AbsoluteFill>
       {/* Flash de film burn — encima de todo el clip */}
       {flash > 0 ? (
@@ -590,6 +721,9 @@ export function Stitch({ scenes = [], brand = {}, fps = 30, style: styleProp = {
     grain: typeof styleProp.grain === "number" ? clamp01(styleProp.grain) : 0.18,
     vignette: typeof styleProp.vignette === "number" ? clamp01(styleProp.vignette) : 0.32,
     letterbox: styleProp.letterbox !== false, // ON por defecto: look cine
+    captions: typeof styleProp.captions === "string" ? styleProp.captions : "boxed", // estilo TikTok por defecto cuando hay words
+    autopunch: styleProp.autopunch !== false, // punch-ins + SFX en beats del habla
+    sfxOn: sfx,
   };
   const { items, total } = computeTimeline(scenes, fps, branding);
   const { height } = useVideoConfig();

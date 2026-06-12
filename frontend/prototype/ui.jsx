@@ -433,6 +433,8 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
   const [sfx, setSfx] = React.useState(true);             // diseño de sonido cinematográfico
   const [origAudio, setOrigAudio] = React.useState(true); // audio original de los vídeos (voz incluida)
   const [branding, setBranding] = React.useState(false);  // intro/outro de marca (off = solo tu contenido)
+  const [capStyle, setCapStyle] = React.useState("boxed");   // estilo de subtítulos TikTok: boxed|bubble|neon|clean
+  const [autopunch, setAutopunch] = React.useState(true);    // punch-ins + SFX automáticos en los beats del habla
   // Texto de subtítulo POR ESCENA (editable en el editor) — keyed por id de asset.
   // Se prefillea con el prompt del asset al abrir el editor; el usuario lo edita.
   const [sceneTexts, setSceneTexts] = React.useState({});
@@ -532,7 +534,7 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
     try {
       const r = await fetch(`${API}/chat/render`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenes, brand: { name: "Cliender", accent: "#7C3AED" }, style: { look, letterbox, grain: grain ? 0.18 : 0, sfx, branding, autosubs: subs }, fps: 24, width: 1080, height: 1920 }),
+        body: JSON.stringify({ scenes, brand: { name: "Cliender", accent: "#7C3AED" }, style: { look, letterbox, grain: grain ? 0.18 : 0, sfx, branding, autosubs: subs, captions: capStyle, autopunch }, fps: 24, width: 1080, height: 1920 }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.detail || data.error || `HTTP ${r.status}`);
@@ -869,6 +871,37 @@ function GalleryPanel({ open, onClose, items, onRemove, onSelect }) {
                       ))}
                     </div>
                   </div>
+
+                  {subs && (
+                    <div>
+                      <div className="mono" style={LBL}>Estilo de subtítulos</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+                        {[
+                          { id: "boxed", t: "TikTok", d: "Palabra a palabra, MAYÚSCULAS, la activa se ilumina en violeta. El estilo viral." },
+                          { id: "bubble", t: "Globo cómic", d: "Burbuja blanca con borde negro y sombra dura, estilo cartoon." },
+                          { id: "neon", t: "Neón", d: "Texto con glow violeta brillante, la palabra activa se enciende." },
+                          { id: "clean", t: "Cine", d: "Frase completa en píldora elegante, sin karaoke. El clásico." },
+                        ].map((s) => (
+                          <button key={s.id} onClick={() => setCapStyle(s.id)} title={s.d} style={{
+                            padding: "10px 8px", borderRadius: 10, cursor: "pointer", textAlign: "center",
+                            background: capStyle === s.id ? "rgba(124,58,237,0.16)" : "var(--surface-2)",
+                            border: capStyle === s.id ? "1.5px solid var(--accent-2)" : "1px solid var(--line)",
+                            color: "var(--text-1)", fontSize: 12, fontWeight: 600,
+                          }}>
+                            {s.t}
+                            <span style={{ display: "block", fontSize: 9.5, opacity: 0.6, marginTop: 3, lineHeight: 1.3, fontWeight: 400 }}>{s.d}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <label style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "9px 11px", marginTop: 8, borderRadius: 10, cursor: "pointer", background: autopunch ? "rgba(124,58,237,0.10)" : "var(--surface-2)", border: autopunch ? "1px solid var(--accent-2)" : "1px solid var(--line)" }}>
+                        <input type="checkbox" checked={autopunch} onChange={(e) => setAutopunch(e.target.checked)} style={{ marginTop: 2 }} />
+                        <span>
+                          <span style={{ display: "block", fontSize: 12.5, fontWeight: 600 }}>Dinamismo automático</span>
+                          <span style={{ display: "block", fontSize: 10.5, opacity: 0.6, lineHeight: 1.35, marginTop: 2 }}>La IA detecta los silencios y golpes del habla y coloca micro-zooms + efectos de sonido justo ahí — el vídeo respira solo</span>
+                        </span>
+                      </label>
+                    </div>
+                  )}
 
                   {subs && (
                     <div>

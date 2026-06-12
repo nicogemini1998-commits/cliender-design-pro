@@ -273,6 +273,8 @@ class RenderStyle(BaseModel):
     branding: bool | None = None          # intro/outro de marca (default False — solo contenido del usuario)
     autosubs: bool | None = None          # subtítulos automáticos: transcribe la voz de los vídeos (faster-whisper)
     language: str | None = None           # idioma para la transcripción (None = autodetectar)
+    captions: str | None = None           # estilo de subtítulos: clean|boxed|bubble|neon (TikTok karaoke por palabra)
+    autopunch: bool | None = None         # punch-ins + SFX automáticos en los beats del habla (default True)
 
 
 class RenderRequest(BaseModel):
@@ -331,9 +333,9 @@ async def render_video(req: RenderRequest) -> RenderResponse:
         import shutil as _shutil
         import tempfile as _tempfile
 
-        from app.api.routes.video import _download, _run_ffmpeg, _transcribe_file
+        from app.api.routes.video import _download, _run_ffmpeg, _transcribe_file_with_words
 
-        async def _segments_for(url: str) -> list[dict[str, Any]]:
+        async def _stt_for(url: str) -> dict[str, Any]:
             tmp = _tempfile.mkdtemp(prefix="cdpro-movie-stt-")
             vid_p = _os.path.join(tmp, "in.mp4")
             wav_p = _os.path.join(tmp, "a.wav")
@@ -342,15 +344,29 @@ async def render_video(req: RenderRequest) -> RenderResponse:
                 await _asyncio.to_thread(
                     _run_ffmpeg, ["ffmpeg", "-y", "-i", vid_p, "-vn", "-ac", "1", "-ar", "16000", wav_p], 300
                 )
-                res = await _asyncio.to_thread(_transcribe_file, wav_p, (req.style.language or None))
-                return [
+                # word_timestamps → karaoke TikTok por palabra en Remotion + detección de beats.
+                res = await _asyncio.to_thread(_transcribe_file_with_words, wav_p, (req.style.language or None))
+                segs = [
                     {"start": float(s["start"]), "end": float(s["end"]), "text": str(s["text"]).strip()}
                     for s in res.get("segments", [])
                     if str(s.get("text", "")).strip()
                 ]
+                words = [
+                    {"start": float(w["start"]), "end": float(w["end"]), "word": str(w["word"]).strip()}
+                    for w in res.get("words", [])
+                    if str(w.get("word", "")).strip()
+                ]
+                # BEATS: el modelo "entiende" el vídeo — cada silencio ≥ 0.6s seguido de
+                # habla marca un golpe narrativo → ahí van punch-in + SFX (no al azar).
+                beats: list[float] = []
+                for i in range(1, len(words)):
+                    gap = words[i]["start"] - words[i - 1]["end"]
+                    if gap >= 0.6:
+                        beats.append(round(words[i]["start"], 2))
+                return {"segments": segs, "words": words, "beats": beats[:6]}
             except Exception as e:  # noqa: BLE001 — sin voz o fallo STT: la película sigue sin subs en esa escena
                 logger.warning("movie.autosubs %s: %s", url[:80], e)
-                return []
+                return {"segments": [], "words": [], "beats": []}
             finally:
                 _shutil.rmtree(tmp, ignore_errors=True)
 
@@ -358,9 +374,13 @@ async def render_video(req: RenderRequest) -> RenderResponse:
             u = str(sc["url"]).split("?")[0].lower()
             is_video = (sc.get("kind") or "").lower() == "video" or u.endswith((".mp4", ".mov", ".webm", ".m4v"))
             if is_video:
-                segs = await _segments_for(sc["url"])
-                if segs:
-                    sc["segments"] = segs
+                stt = await _stt_for(sc["url"])
+                if stt["segments"]:
+                    sc["segments"] = stt["segments"]
+                if stt["words"]:
+                    sc["words"] = stt["words"]
+                if stt["beats"]:
+                    sc["beats"] = stt["beats"]
 
     payload: dict[str, Any] = {
         "scenes": scenes,

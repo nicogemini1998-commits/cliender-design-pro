@@ -56,9 +56,7 @@
       filter: blur(70px); opacity: .8; will-change: transform;
     }
     html[data-theme="light"] .bg-aurora { opacity: .4; }
-    @media (prefers-reduced-motion: no-preference) {
-      .bg-aurora { animation: aurora-drift 26s linear infinite; }
-    }
+    .bg-aurora { animation: aurora-drift 26s linear infinite; }
     @keyframes aurora-drift { to { transform: rotate(360deg); } }
     .bg-vignette {
       position: fixed; inset: 0; z-index: 0; pointer-events: none;
@@ -270,13 +268,8 @@
     .js-anim .rise { animation: none; }
     @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
 
-    /* ── Accesibilidad: reduced motion apaga TODO lo decorativo ── */
-    @media (prefers-reduced-motion: reduce) {
-      .logo-img, .logo-ring::after, .bg-aurora, .cta-spinner svg { animation: none !important; }
-      .rise { animation-duration: .01ms !important; }
-      #dust { display: none; }
-      *, *::before, *::after { transition-duration: .15s !important; }
-    }
+    /* Las animaciones SIEMPRE encendidas — decisión de producto (Nico 2026-06-12):
+       el login es el escaparate de la herramienta; nada de apagarlas por ajustes del SO. */
   </style>
 </head>
 <body>
@@ -502,7 +495,6 @@
 
     // ── Polvo de estudio (constelación canvas, coste acotado) ──
     (function dust() {
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       if (window.innerWidth < 640) return; // móvil: la aurora basta
       var cv = document.getElementById('dust'); if (!cv) return;
       var ctx = cv.getContext('2d');
@@ -549,22 +541,21 @@
       });
     })();
 
-    // ── GSAP: timeline maestro de entrada + vida idle (CSS .rise queda como fallback) ──
+    // ── GSAP: timeline maestro de entrada + vida idle — SIEMPRE activo ──
     window.addEventListener('load', function() {
       if (typeof gsap === 'undefined') return;
-      var mm = gsap.matchMedia();
-      mm.add('(prefers-reduced-motion: no-preference)', function() {
+      (function() {
         document.documentElement.classList.add('js-anim'); // apaga .rise → una sola fuente de verdad
         var tl = gsap.timeline({ defaults: { ease: 'power4.out' } });
         tl.from('.logo-ring',   { scale: 1.6, opacity: 0, duration: 1.2 })
           .from('.logo-img',    { scale: 0.4, rotate: -12, opacity: 0, duration: 1.5, ease: 'elastic.out(1,0.6)' }, '<0.1')
-          .fromTo('.wordmark',  { letterSpacing: '0.9em', opacity: 0 }, { letterSpacing: '0.42em', opacity: 1, duration: 1.3 }, '<0.25')
+          .fromTo('.wordmark',  { letterSpacing: '0.9em', opacity: 0, filter: 'blur(6px)' }, { letterSpacing: '0.42em', opacity: 1, filter: 'blur(0px)', duration: 1.3 }, '<0.25')
           .from('.eyebrow',     { opacity: 0, y: 8, duration: 0.8 }, '<0.3')
           .fromTo('.tl-word',   { yPercent: 115, rotate: 4 }, { yPercent: 0, rotate: 0, duration: 1.1, stagger: 0.055 }, '<0.2')
           .fromTo('.tl-em',     { color: 'var(--v)' }, { color: 'var(--v3)', duration: 1.2, ease: 'sine.inOut' }, '<0.4')
           .from('.sub-tagline', { opacity: 0, y: 10, duration: 0.8 }, '<0.3')
           .from('.divider-diamond', { rotate: 225, scale: 0, duration: 0.9, ease: 'back.out(2)' }, '<0.4')
-          .from('.field, .row, .cta', { y: 22, opacity: 0, duration: 0.9, stagger: 0.09 }, '<0.1')
+          .fromTo('.field, .row, .cta', { y: 22, opacity: 0, filter: 'blur(6px)' }, { y: 0, opacity: 1, filter: 'blur(0px)', duration: 0.9, stagger: 0.09 }, '<0.1')
           .from('.foot',        { opacity: 0, duration: 1 }, '<0.3');
 
         // Respiración de la aurora (escala lenta encima de la rotación CSS)
@@ -601,7 +592,7 @@
           }
           gsap.delayedCall(4, idleShine);
         }
-      });
+      })();
     });
 
     // ── Auth ──
@@ -654,7 +645,7 @@
         localStorage.setItem('cdpro-user-id', res.data.user.id);
         // Éxito: check dibujado + texto morph + veil circular desde el botón
         btn.classList.remove('is-loading'); btn.classList.add('is-success');
-        if (typeof gsap !== 'undefined' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        if (typeof gsap !== 'undefined') {
           var r = btn.getBoundingClientRect();
           var cx = r.left + r.width/2, cy = r.top + r.height/2;
           var veil = document.querySelector('.exit-veil');
