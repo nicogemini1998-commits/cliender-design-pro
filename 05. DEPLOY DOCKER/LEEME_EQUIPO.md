@@ -4,6 +4,18 @@
 
 ---
 
+## Repo GitHub (fuente de verdad)
+
+**https://github.com/nicogemini1998-commits/cliender-design-pro**
+
+Cada vez que Nico actualice la herramienta, puedes bajar los cambios:
+```bash
+git pull origin main
+```
+Si no tienes el repo clonado todavia, ve a la sección «Actualizar desde GitHub» al final de este documento.
+
+---
+
 ## Lo único que necesitas instalar (solo una vez)
 
 **Docker Desktop** — descarga e instala según tu sistema:
@@ -108,3 +120,28 @@ Desde la carpeta `05. DEPLOY DOCKER`:
 ---
 
 *Owner: KAREN (Nico) · v1.0 · 2026-06-04*
+
+---
+
+## Actualizar desde GitHub (si recibes cambios de Nico)
+
+Si Nico te avisa de que hay una versión nueva:
+
+**Si ya tienes la carpeta del proyecto (via OneDrive):**
+```bash
+cd "[ruta a 02. Cliender Desing Pro V1]"
+git pull origin main
+cd "05. DEPLOY DOCKER"
+./arrancar.sh restart
+```
+
+**Si quieres clonar desde GitHub directamente:**
+```bash
+git clone https://github.com/nicogemini1998-commits/cliender-design-pro.git
+cd cliender-design-pro/05.\ DEPLOY\ DOCKER
+cp .env.cdpro.example .env.cdpro
+# Edita .env.cdpro con las claves (pedirlas a Nico)
+./arrancar.sh
+```
+
+*Owner: KAREN (Nico) · v1.1 · 2026-06-16*
