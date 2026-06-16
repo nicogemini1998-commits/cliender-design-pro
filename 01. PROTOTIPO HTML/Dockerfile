@@ -20,6 +20,8 @@ WORKDIR /src
 RUN npm init -y >/dev/null 2>&1 && \
     npm i --no-audit --no-fund \
       @babel/core@7 @babel/cli@7 @babel/preset-react@7 @babel/plugin-transform-block-scoping@7
+# CACHEBUST invalida solo el COPY+compile (npm install permanece cacheado)
+ARG CACHEBUST=1
 COPY prototype /src/prototype
 RUN set -e; for f in nodes vault ui leftmenu analytics astronaut app; do \
       npx babel "/src/prototype/$f.jsx" \

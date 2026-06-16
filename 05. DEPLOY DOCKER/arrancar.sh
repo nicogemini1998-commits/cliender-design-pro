@@ -19,7 +19,7 @@ case "${1:-}" in
   restart)
     echo "Reiniciando Cliender DesignPro..."
     docker compose down
-    docker compose up -d --build
+    CACHEBUST=$(date +%s) docker compose build --build-arg CACHEBUST=$(date +%s) cdpro-prototype && docker compose up -d
     echo "Reiniciado. Abre http://localhost:2002"
     ;;
   logs)
@@ -49,7 +49,7 @@ case "${1:-}" in
     fi
 
     echo "  Levantando servicios (primera vez tarda 3-5 min)..."
-    docker compose up -d --build
+    CACHEBUST=$(date +%s) docker compose build --build-arg CACHEBUST=$(date +%s) cdpro-prototype && docker compose up -d --build
 
     echo ""
     echo "  Cliender DesignPro esta listo!"

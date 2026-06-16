@@ -20,6 +20,8 @@ if not exist ".env.cdpro" (
   pause & exit /b 1
 )
 echo   Levantando servicios (primera vez tarda 3-5 min)...
+for /f %%i in ('powershell -command "[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()"') do set CACHEBUST=%%i
+docker compose build --build-arg CACHEBUST=%CACHEBUST% cdpro-prototype
 docker compose up -d --build
 echo.
 echo   Cliender DesignPro esta listo!
