@@ -471,7 +471,14 @@ function Gallery({ mb, dispatch, scanningId, onRequestUpload }) {
               const isActive = scanningId === img.id;
               return (
                 <div key={img.id} className={"vlt-masonry-item" + (isActive ? " is-scanning" : "")}>
-                  <img src={proxied(img.url)} alt="" loading="lazy" onClick={()=>setPreviewImg(img)}/>
+                  <img src={proxied(img.url)} alt="" loading="lazy" onClick={()=>setPreviewImg(img)}
+                    onError={e=>{ e.target.style.display='none'; e.target.nextSibling && (e.target.nextSibling.style.display='flex'); }}
+                  />
+                  <div style={{display:'none',position:'absolute',inset:0,flexDirection:'column',alignItems:'center',justifyContent:'center',gap:6,background:'var(--surface-2,#1a1a1f)',color:'var(--text-3,#666)',fontSize:11,fontFamily:'monospace'}}>
+                    <span style={{fontSize:22,opacity:.4}}>⚠</span>
+                    <span>imagen no disponible</span>
+                    <span style={{opacity:.5,fontSize:9}}>re-subir en el vault</span>
+                  </div>
                   {isActive && (
                     <div className="vlt-scan-overlay vlt-siri" aria-hidden="true">
                       {/* Campo fluido de color morphing — estilo Siri */}
