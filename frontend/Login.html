@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Cliender DesignPro · Acceso</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <script src="https://unpkg.com/gsap@3.12.5/dist/gsap.min.js" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --v: #A78BFA; --v2: #8B6FE0; --v3: #C4B5FD; --v-deep: #6D28D9;
+      --noir: #08080D; --noir2: #0D0D14;
+      --t1: rgba(255,255,255,0.94); --t2: rgba(255,255,255,0.55); --t3: rgba(255,255,255,0.34); --t4: rgba(255,255,255,0.16);
+      --hair: rgba(255,255,255,0.10);
+      --ease: cubic-bezier(0.16,1,0.3,1);
+      --ease-lux: cubic-bezier(0.22,1,0.36,1);
+    }
+    html[data-theme="light"] {
+      --noir: #F7F5F2; --noir2: #FFFFFF;
+      --t1: rgba(20,16,30,0.92); --t2: rgba(20,16,30,0.56); --t3: rgba(20,16,30,0.38); --t4: rgba(20,16,30,0.16);
+      --hair: rgba(109,40,217,0.12);
+    }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Geist', system-ui, sans-serif;
+      background: var(--noir); color: var(--t1);
+      min-height: 100dvh; overflow-x: hidden;
+      transition: background .6s var(--ease), color .6s var(--ease);
+    }
+
+    /* ── Ambient luxe backdrop ── */
+    .bg-glow {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(60vmax 50vmax at 50% -10%, rgba(124,58,237,0.16), transparent 60%),
+        radial-gradient(40vmax 40vmax at 15% 110%, rgba(167,139,250,0.10), transparent 60%),
+        radial-gradient(40vmax 40vmax at 90% 90%, rgba(99,102,241,0.08), transparent 60%);
+      transition: opacity .6s;
+    }
+    html[data-theme="light"] .bg-glow {
+      background:
+        radial-gradient(60vmax 50vmax at 50% -10%, rgba(124,58,237,0.10), transparent 60%),
+        radial-gradient(40vmax 40vmax at 15% 110%, rgba(167,139,250,0.07), transparent 60%);
+    }
+    /* Aurora viva: el blur se rasteriza UNA vez y solo ROTA en compositor (transform-only).
+       inset -35% evita ver los bordes del layer al girar. */
+    .bg-aurora {
+      position: fixed; inset: -35%; z-index: 0; pointer-events: none;
+      background: conic-gradient(from 0deg at 50% 42%,
+        transparent 0%, rgba(124,58,237,0.10) 12%, transparent 28%,
+        rgba(99,102,241,0.07) 48%, transparent 62%,
+        rgba(167,139,250,0.08) 80%, transparent 100%);
+      filter: blur(70px); opacity: .8; will-change: transform;
+    }
+    html[data-theme="light"] .bg-aurora { opacity: .4; }
+    .bg-aurora { animation: aurora-drift 26s linear infinite; }
+    @keyframes aurora-drift { to { transform: rotate(360deg); } }
+    .bg-vignette {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background: radial-gradient(120vmax 100vmax at 50% 50%, transparent 55%, rgba(0,0,0,0.45) 100%);
+    }
+    html[data-theme="light"] .bg-vignette { background: radial-gradient(120vmax 100vmax at 50% 50%, transparent 60%, rgba(124,58,237,0.05) 100%); }
+    #dust { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: .55; }
+    .grain {
+      position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: .4; mix-blend-mode: overlay;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 180px;
+    }
+    /* Veil de salida: la pantalla se "traga" en violeta→noir desde el botón tras login OK. */
+    .exit-veil {
+      position: fixed; inset: 0; z-index: 50; pointer-events: none; visibility: hidden;
+      background: radial-gradient(circle at center, #6D28D9 0%, #08080D 70%);
+      clip-path: circle(0% at 50% 50%);
+    }
+
+    /* ── Theme toggle ── */
+    .theme-btn {
+      position: fixed; top: 26px; right: 28px; z-index: 30;
+      width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--hair);
+      background: rgba(255,255,255,0.03); color: var(--t2); cursor: pointer;
+      display: grid; place-items: center; backdrop-filter: blur(10px);
+      transition: transform .5s var(--ease), border-color .3s, color .3s;
+    }
+    .theme-btn:hover { transform: rotate(40deg); border-color: var(--v); color: var(--v); }
+
+    /* ── Stage ── */
+    .stage {
+      position: relative; z-index: 2;
+      min-height: 100dvh;
+      display: grid; place-items: center;
+      padding: 40px 24px;
+      perspective: 1400px;
+    }
+    .panel { width: 100%; max-width: 408px; text-align: center; transform-style: preserve-3d; }
+
+    /* ── Brand lockup ── */
+    .brand-lockup { display: flex; flex-direction: column; align-items: center; margin-bottom: 38px; }
+    .logo-frame {
+      position: relative; width: 92px; height: 92px; margin-bottom: 24px;
+      display: grid; place-items: center; transform: translateZ(34px);
+    }
+    .logo-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid var(--hair); }
+    .logo-ring::after {
+      content: ""; position: absolute; inset: -5px; border-radius: 50%;
+      border: 1px solid transparent;
+      background: conic-gradient(from 0deg, transparent, rgba(167,139,250,0.5), transparent 35%) border-box;
+      -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      animation: ring-spin 8s linear infinite;
+    }
+    @keyframes ring-spin { to { transform: rotate(360deg); } }
+    .logo-img {
+      width: 72px; height: 72px; border-radius: 50%;
+      object-fit: cover; display: block;
+      box-shadow: 0 12px 40px -8px rgba(124,58,237,0.45), 0 0 0 1px rgba(167,139,250,0.18);
+      animation: logo-float 5s ease-in-out infinite;
+    }
+    @keyframes logo-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+
+    .wordmark {
+      font-family: 'Geist', sans-serif; font-weight: 500;
+      font-size: 26px; letter-spacing: 0.42em; text-indent: 0.42em;
+      color: var(--t1); margin-bottom: 9px;
+    }
+    .eyebrow {
+      font-family: 'Geist Mono', monospace;
+      font-size: 9.5px; letter-spacing: 0.4em; text-indent: 0.4em;
+      text-transform: uppercase; color: var(--v3);
+    }
+
+    /* ── Hairline divider with diamond ── */
+    .divider-lux {
+      display: flex; align-items: center; justify-content: center; gap: 14px;
+      margin: 32px auto 30px; max-width: 220px;
+    }
+    .divider-lux::before, .divider-lux::after {
+      content: ""; height: 1px; flex: 1;
+      background: linear-gradient(to right, transparent, var(--hair), transparent);
+    }
+    .divider-diamond { width: 5px; height: 5px; transform: rotate(45deg); background: var(--v); box-shadow: 0 0 8px rgba(167,139,250,0.6); }
+
+    /* ── Tagline ── */
+    .tagline {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-weight: 400; font-size: 27px; line-height: 1.32;
+      color: var(--t1); letter-spacing: 0.005em;
+      margin-bottom: 8px; transform: translateZ(18px);
+    }
+    .tagline em { font-style: italic; color: var(--v3); }
+    .tl-mask { display: inline-block; overflow: hidden; vertical-align: bottom; }
+    .tl-word { display: inline-block; will-change: transform; }
+    .sub-tagline { font-size: 12.5px; color: var(--t2); letter-spacing: 0.02em; margin-bottom: 38px; }
+
+    /* ── Form — campos pill, focus PROGRESIVO (halo + beam, CSS puro) ── */
+    .field { position: relative; margin-bottom: 12px; }
+    .field::after { /* halo que se ENCIENDE en 700ms, no aparece de golpe */
+      content: ""; position: absolute; inset: -3px; border-radius: 21px; pointer-events: none;
+      box-shadow: 0 0 24px 2px rgba(167,139,250,.22), 0 0 60px -10px rgba(124,58,237,.35);
+      opacity: 0; transform: scale(.97);
+      transition: opacity .7s var(--ease-lux), transform .7s var(--ease-lux);
+    }
+    .field:focus-within::after { opacity: 1; transform: scale(1); }
+    .field::before { /* beam inferior que crece desde el centro */
+      content: ""; position: absolute; left: 18px; right: 18px; bottom: 0; height: 1px; z-index: 2;
+      background: linear-gradient(90deg, transparent, var(--v), transparent);
+      transform: scaleX(0); transition: transform .55s var(--ease-lux);
+    }
+    .field:focus-within::before { transform: scaleX(1); }
+    .field-input {
+      width: 100%; padding: 20px 20px 9px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid var(--hair); color: var(--t1);
+      border-radius: 18px; caret-color: var(--v3);
+      font-size: 14px; font-family: inherit; outline: none;
+      transition: border-color .4s var(--ease-lux), background .4s var(--ease-lux), transform .4s var(--ease-lux);
+      position: relative; z-index: 1;
+    }
+    html[data-theme="light"] .field-input { background: rgba(109,40,217,0.035); }
+    .field-input::placeholder { color: transparent; }
+    .field-input:focus {
+      border-color: rgba(167,139,250,0.6);
+      background: rgba(167,139,250,0.05);
+      transform: translateY(-1px);
+    }
+    .field-label {
+      position: absolute; top: 16px; left: 20px; z-index: 3; pointer-events: none;
+      font-size: 13px; color: var(--t3); transform-origin: left center;
+      transition: all .4s var(--ease-lux); transition-delay: .05s;
+    }
+    .field-input:focus ~ .field-label,
+    .field-input:not(:placeholder-shown) ~ .field-label {
+      transform: translateY(-10px) scale(0.74); color: var(--v3); letter-spacing: 0.1em;
+    }
+
+    .row { display: flex; align-items: center; justify-content: space-between; margin: 18px 2px 22px; }
+    .check { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; font-size: 12px; color: var(--t3); user-select: none; }
+    .check input { display: none; }
+    .check-box { width: 15px; height: 15px; border-radius: 4px; border: 1px solid var(--t4); background: transparent; transition: all .2s; position: relative; }
+    .check input:checked ~ .check-box { background: var(--v-deep); border-color: var(--v); }
+    .check input:checked ~ .check-box::after { content: "✓"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 9px; color: #fff; }
+    .forgot { font-size: 12px; color: var(--t3); text-decoration: none; letter-spacing: 0.01em; transition: color .2s; }
+    .forgot:hover { color: var(--v3); }
+
+    /* ── CTA ── */
+    .cta {
+      width: 100%; position: relative; overflow: hidden;
+      padding: 17px 24px; border: 0; border-radius: 999px; cursor: pointer;
+      font-family: 'Geist', sans-serif; font-size: 13px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
+      color: #fff;
+      background: linear-gradient(180deg, #8B6FE0 0%, #6D28D9 100%);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset, 0 0 0 1px rgba(167,139,250,0.3), 0 18px 40px -12px rgba(124,58,237,0.6);
+      transition: transform .35s var(--ease-lux), box-shadow .4s, filter .3s;
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      transform: translateZ(24px);
+    }
+    .cta:hover { transform: translateZ(24px) translateY(-2px); filter: brightness(1.08); box-shadow: 0 1px 0 rgba(255,255,255,0.3) inset, 0 0 0 1px rgba(167,139,250,0.45), 0 26px 56px -12px rgba(124,58,237,0.7); }
+    .cta:active { transform: translateZ(24px) scale(0.99); }
+    .cta::before { /* highlight radial que sigue al puntero */
+      content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+      background: radial-gradient(110px circle at var(--mx,50%) var(--my,50%), rgba(255,255,255,.16), transparent 70%);
+      opacity: 0; transition: opacity .4s;
+    }
+    .cta:hover::before { opacity: 1; }
+    .cta-shine {
+      position: absolute; inset: 0; pointer-events: none;
+      background: linear-gradient(105deg, transparent 42%, rgba(255,255,255,0.22) 50%, transparent 58%);
+      background-size: 220% 100%; background-position: -120% 0%;
+      transition: background-position .9s var(--ease-lux);
+    }
+    .cta:hover .cta-shine { background-position: 120% 0%; }
+    .cta-arrow { transition: transform .35s var(--ease-lux), opacity .3s; display: inline-flex; }
+    .cta:hover .cta-arrow { transform: translateX(4px); }
+    .cta-spinner, .cta-check { position: absolute; right: 22px; opacity: 0; display: inline-flex; transition: opacity .3s; }
+    .cta.is-loading .cta-arrow { opacity: 0; transform: translateX(8px); }
+    .cta.is-loading .cta-spinner { opacity: 1; }
+    .cta.is-loading .cta-spinner svg { animation: spin .9s linear infinite; }
+    .cta.is-success .cta-arrow, .cta.is-success .cta-spinner { opacity: 0; }
+    .cta.is-success .cta-check { opacity: 1; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #login-error {
+      display: none; margin: 0 0 16px; padding: 11px 14px; border-radius: 11px;
+      background: rgba(225,90,110,0.08); color: #F0A0AC; border: 1px solid rgba(225,90,110,0.25);
+      font-size: 12px; line-height: 1.5; text-align: left;
+    }
+
+    /* ── Footer ── */
+    .foot {
+      margin-top: 44px; font-family: 'Geist Mono', monospace;
+      font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--t4);
+    }
+    .foot-badge {
+      display: inline-flex; align-items: center; gap: 6px; margin-top: 10px;
+      padding: 4px 12px; border-radius: 999px; border: 1px solid var(--hair);
+      color: var(--t3); font-size: 9px;
+    }
+    .foot-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--v); box-shadow: 0 0 5px var(--v); }
+
+    /* ── Entrance (CSS baseline; GSAP la sustituye con .js-anim) ── */
+    @keyframes rise { from { opacity: 0; transform: translateY(26px); filter: blur(6px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
+    .rise { opacity: 1; animation: rise 1.1s var(--ease-lux) forwards; }
+    .d1 { animation-delay: .10s; } .d2 { animation-delay: .24s; } .d3 { animation-delay: .38s; }
+    .d4 { animation-delay: .52s; } .d5 { animation-delay: .66s; } .d6 { animation-delay: .80s; }
+    /* GSAP toma el control: apagar la animación CSS para no componer doble opacidad/blur */
+    .js-anim .rise { animation: none; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+
+    /* Las animaciones SIEMPRE encendidas — decisión de producto (Nico 2026-06-12):
+       el login es el escaparate de la herramienta; nada de apagarlas por ajustes del SO. */
+  </style>
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+  <div class="bg-aurora" aria-hidden="true"></div>
+  <div class="bg-vignette" aria-hidden="true"></div>
+  <canvas id="dust" aria-hidden="true"></canvas>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="exit-veil" aria-hidden="true"></div>
+
+  <button class="theme-btn" id="theme-toggle" title="Cambiar tema">
+    <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M17.5 10.83A7.5 7.5 0 1 1 9.17 2.5 5.83 5.83 0 0 0 17.5 10.83z"/>
+    </svg>
+  </button>
+
+  <div class="stage">
+    <div class="panel">
+      <!-- Brand -->
+      <div class="brand-lockup rise d1">
+        <div class="logo-frame">
+          <span class="logo-ring"></span>
+          <img class="logo-img"
+               src="https://opjwsdaphsulnpuvpout.supabase.co/storage/v1/object/public/brand-assets/cliender/logo-isotipo-violet.png"
+               alt="Cliender"/>
+        </div>
+        <div class="wordmark">CLIENDER</div>
+        <div class="eyebrow">Design&nbsp;Pro</div>
+      </div>
+
+      <!-- Tagline -->
+      <h1 class="tagline rise d2" id="tagline">El estudio donde tu marca<br/><em>cobra vida</em>.</h1>
+      <p class="sub-tagline rise d2">Acceso exclusivo al workspace creativo</p>
+
+      <div class="divider-lux rise d3">
+        <span class="divider-diamond"></span>
+      </div>
+
+      <!-- Form -->
+      <form id="login-form" class="rise d4" autocomplete="on">
+        <div id="login-error"></div>
+        <div class="field">
+          <input class="field-input" id="login-email" type="email" name="email" placeholder=" " autocomplete="email" required/>
+          <label class="field-label" for="login-email">Email</label>
+        </div>
+        <div class="field">
+          <input class="field-input" id="login-pass" type="password" name="password" placeholder=" " autocomplete="current-password" required/>
+          <label class="field-label" for="login-pass">Contraseña</label>
+        </div>
+
+        <div class="row">
+          <label class="check"><input type="checkbox" id="remember" checked/><span class="check-box"></span><span>Recordarme</span></label>
+          <a href="#" class="forgot" id="forgot-link">¿Olvidaste tu contraseña?</a>
+        </div>
+
+        <button type="submit" class="cta" id="login-btn">
+          <span class="cta-shine" aria-hidden="true"></span>
+          <span id="cta-text">Acceder</span>
+          <span class="cta-arrow" aria-hidden="true">
+            <svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h8M7.5 3.5L11 7l-3.5 3.5"/></svg>
+          </span>
+          <span class="cta-spinner" aria-hidden="true">
+            <svg viewBox="0 0 18 18" width="15" height="15"><circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="28" stroke-dashoffset="20"/></svg>
+          </span>
+          <span class="cta-check" aria-hidden="true">
+            <svg viewBox="0 0 16 16" width="14" height="14"><path id="check-path" d="M3.5 8.5l3 3L12.5 5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="14" stroke-dashoffset="14"/></svg>
+          </span>
+        </button>
+      </form>
+
+      <div class="foot rise d5">
+        © 2026 HBD Revolution SL
+        <div><span class="foot-badge"><span class="foot-dot"></span>Workspace privado</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* Supabase Auth via REST — sin SDK externo.
+       Gestión de sesión completa: remember real (localStorage vs sessionStorage),
+       AUTO-REFRESH con refresh_token (la sesión ya no muere a la hora), y errores
+       de red con mensaje claro (antes un fetch fallido rompía el submit en silencio). */
+    window._SB = (function() {
+      var URL  = 'https://opjwsdaphsulnpuvpout.supabase.co';
+      var ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wandzZGFwaHN1bG5wdXZwb3V0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4ODM4NTgsImV4cCI6MjA5NTQ1OTg1OH0.hnbr1kRUizsa6-9CwPjSXWX1aqKFDjDcgKpLFhHewHg';
+      var LS_KEY = 'sb-opjwsdaphsulnpuvpout-auth-token';
+      function headers(extra) { return Object.assign({'apikey':ANON,'Content-Type':'application/json'}, extra||{}); }
+      function readTok() {
+        try {
+          var raw = sessionStorage.getItem(LS_KEY) || localStorage.getItem(LS_KEY);
+          if (!raw) return null;
+          var tok = JSON.parse(raw);
+          return (tok && tok.access_token) ? tok : null;
+        } catch(e) { return null; }
+      }
+      function writeTok(session, remember) {
+        var raw = JSON.stringify(session);
+        if (remember) { localStorage.setItem(LS_KEY, raw); sessionStorage.removeItem(LS_KEY); }
+        else { sessionStorage.setItem(LS_KEY, raw); localStorage.removeItem(LS_KEY); }
+      }
+      function tokAlive(tok) { return !(tok.expires_at && Date.now()/1000 > tok.expires_at - 60); }
+      async function refresh(tok) {
+        if (!tok.refresh_token) return null;
+        try {
+          var r = await fetch(URL+'/auth/v1/token?grant_type=refresh_token', {
+            method:'POST', headers: headers(),
+            body: JSON.stringify({refresh_token: tok.refresh_token})
+          });
+          var d = await r.json();
+          if (!r.ok || !d.access_token) return null;
+          var session = Object.assign({}, d, {expires_at: Math.floor(Date.now()/1000) + (d.expires_in||3600)});
+          var remembered = !!localStorage.getItem(LS_KEY);
+          writeTok(session, remembered);
+          return session;
+        } catch(e) { return null; }
+      }
+      return {
+        getSession: async function() {
+          var tok = readTok();
+          if (!tok) return {data:{session:null}};
+          if (tokAlive(tok)) return {data:{session:tok}};
+          var renewed = await refresh(tok);   // expirada → intentar renovar, no expulsar
+          return {data:{session: renewed}};
+        },
+        signInWithPassword: async function(opts) {
+          var r;
+          try {
+            r = await fetch(URL+'/auth/v1/token?grant_type=password', {
+              method:'POST', headers: headers(),
+              body: JSON.stringify({email:opts.email, password:opts.password})
+            });
+          } catch(e) {
+            return {data:null, error:{message:'network', network:true}};
+          }
+          var d = await r.json().catch(function(){ return {}; });
+          if (!r.ok || d.error) return {data:null, error:{message: d.error_description||d.msg||d.error||'Error de autenticación'}};
+          var session = Object.assign({}, d, {expires_at: Math.floor(Date.now()/1000) + (d.expires_in||3600)});
+          writeTok(session, opts.remember !== false);
+          return {data:{session, user:{email:opts.email, id:d.user?.id||''}}, error:null};
+        },
+        signOut: async function() {
+          try {
+            var tok = readTok();
+            if (tok && tok.access_token) { await fetch(URL+'/auth/v1/logout', {method:'POST', headers: headers({'Authorization':'Bearer '+tok.access_token})}); }
+          } catch(e) {}
+          localStorage.removeItem(LS_KEY); sessionStorage.removeItem(LS_KEY);
+        },
+        resetPasswordForEmail: async function(email, opts) {
+          var r;
+          try {
+            r = await fetch(URL+'/auth/v1/recover', {
+              method:'POST', headers: headers(),
+              body: JSON.stringify({email, redirect_to: opts?.redirectTo||''})
+            });
+          } catch(e) { return {error:{message:'network', network:true}}; }
+          var d = await r.json().catch(function(){ return {}; });
+          return r.ok ? {error:null} : {error:{message:d.msg||d.error||'Error'}};
+        }
+      };
+    })();
+    window.__cdproSignOut = function() {
+      window._SB.signOut().finally(function() {
+        // Limpiar TODO el estado por-usuario — en máquina compartida el siguiente
+        // usuario no debe heredar perfil/contexto del anterior.
+        ['cdpro-user-email','cdpro-user-id','cliender-profile','cdp-ctx-client','cdp-ctx-mb'].forEach(function(k){ try{localStorage.removeItem(k);}catch(e){} });
+        window.location.replace('Login.html');
+      });
+    };
+  </script>
+  <script>
+    // ── Theme ──
+    (function() {
+      var saved = localStorage.getItem('cliender-theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', saved);
+      var btn = document.getElementById('theme-toggle');
+      function icon() {
+        var t = document.documentElement.getAttribute('data-theme');
+        btn.innerHTML = t === 'light'
+          ? '<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="10" r="3.5"/><path d="M10 1.5v2M10 16.5v2M1.5 10h2M16.5 10h2M4.1 4.1l1.4 1.4M14.5 14.5l1.4 1.4M4.1 15.9l1.4-1.4M14.5 5.5l1.4-1.4"/></svg>'
+          : '<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 10.83A7.5 7.5 0 1 1 9.17 2.5 5.83 5.83 0 0 0 17.5 10.83z"/></svg>';
+      }
+      icon();
+      btn.addEventListener('click', function() {
+        var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('cliender-theme', next);
+        icon();
+      });
+    })();
+
+    // ── Tagline: envolver cada palabra en máscara overflow (respeta <br> y <em>) ──
+    (function splitTagline() {
+      var h1 = document.getElementById('tagline');
+      if (!h1) return;
+      function wrapWords(node, inEm) {
+        var out = [];
+        node.childNodes.forEach(function(child) {
+          if (child.nodeType === 3) {
+            child.textContent.split(/(\s+)/).forEach(function(part) {
+              if (!part) return;
+              if (/^\s+$/.test(part)) { out.push(document.createTextNode(' ')); return; }
+              var mask = document.createElement('span'); mask.className = 'tl-mask';
+              var w = document.createElement('span'); w.className = 'tl-word' + (inEm ? ' tl-em' : '');
+              w.textContent = part; mask.appendChild(w); out.push(mask);
+            });
+          } else if (child.nodeName === 'BR') {
+            out.push(document.createElement('br'));
+          } else if (child.nodeName === 'EM') {
+            var em = document.createElement('em');
+            wrapWords(child, true).forEach(function(n){ em.appendChild(n); });
+            out.push(em);
+            // el punto final tras </em>
+          } else {
+            out.push(child.cloneNode(true));
+          }
+        });
+        return out;
+      }
+      var nodes = wrapWords(h1, false);
+      h1.innerHTML = '';
+      nodes.forEach(function(n){ h1.appendChild(n); });
+    })();
+
+    // ── Polvo de estudio (constelación canvas, coste acotado) ──
+    (function dust() {
+      if (window.innerWidth < 640) return; // móvil: la aurora basta
+      var cv = document.getElementById('dust'); if (!cv) return;
+      var ctx = cv.getContext('2d');
+      var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      var W, H, parts = [], raf = null;
+      function size() {
+        W = window.innerWidth; H = window.innerHeight;
+        cv.width = W * dpr; cv.height = H * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      size(); window.addEventListener('resize', size);
+      var N = Math.min(70, (window.innerWidth / 22) | 0);
+      for (var i = 0; i < N; i++) {
+        parts.push({ x: Math.random()*W, y: Math.random()*H,
+          vx: (Math.random()-0.5)*0.16, vy: (Math.random()-0.5)*0.16,
+          r: 0.4 + Math.random()*0.7, a: 0.15 + Math.random()*0.35, ph: Math.random()*Math.PI*2 });
+      }
+      var t = 0;
+      function frame() {
+        t += 0.008;
+        ctx.clearRect(0, 0, W, H);
+        for (var i = 0; i < parts.length; i++) {
+          var p = parts[i];
+          p.x += p.vx; p.y += p.vy;
+          if (p.x < -10) p.x = W+10; if (p.x > W+10) p.x = -10;
+          if (p.y < -10) p.y = H+10; if (p.y > H+10) p.y = -10;
+          var pulse = 0.6 + 0.4 * Math.sin(t*2 + p.ph);
+          ctx.fillStyle = 'rgba(196,181,253,' + (p.a * pulse).toFixed(3) + ')';
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.2832); ctx.fill();
+          for (var j = i+1; j < parts.length; j++) {
+            var q = parts[j], dx = p.x-q.x, dy = p.y-q.y, d2 = dx*dx + dy*dy;
+            if (d2 < 8100) { // 90px — líneas que se intuyen más que se ven
+              ctx.strokeStyle = 'rgba(167,139,250,' + ((1 - Math.sqrt(d2)/90) * 0.06).toFixed(3) + ')';
+              ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+            }
+          }
+        }
+        raf = requestAnimationFrame(frame);
+      }
+      frame();
+      document.addEventListener('visibilitychange', function() {
+        if (document.hidden) { cancelAnimationFrame(raf); raf = null; }
+        else if (!raf) frame();
+      });
+    })();
+
+    // ── GSAP: timeline maestro de entrada + vida idle — SIEMPRE activo ──
+    window.addEventListener('load', function() {
+      if (typeof gsap === 'undefined') return;
+      (function() {
+        document.documentElement.classList.add('js-anim'); // apaga .rise → una sola fuente de verdad
+        var tl = gsap.timeline({ defaults: { ease: 'power4.out' } });
+        tl.from('.logo-ring',   { scale: 1.6, opacity: 0, duration: 1.2 })
+          .from('.logo-img',    { scale: 0.4, rotate: -12, opacity: 0, duration: 1.5, ease: 'elastic.out(1,0.6)' }, '<0.1')
+          .fromTo('.wordmark',  { letterSpacing: '0.9em', opacity: 0, filter: 'blur(6px)' }, { letterSpacing: '0.42em', opacity: 1, filter: 'blur(0px)', duration: 1.3 }, '<0.25')
+          .from('.eyebrow',     { opacity: 0, y: 8, duration: 0.8 }, '<0.3')
+          .fromTo('.tl-word',   { yPercent: 115, rotate: 4 }, { yPercent: 0, rotate: 0, duration: 1.1, stagger: 0.055 }, '<0.2')
+          .fromTo('.tl-em',     { color: 'var(--v)' }, { color: 'var(--v3)', duration: 1.2, ease: 'sine.inOut' }, '<0.4')
+          .from('.sub-tagline', { opacity: 0, y: 10, duration: 0.8 }, '<0.3')
+          .from('.divider-diamond', { rotate: 225, scale: 0, duration: 0.9, ease: 'back.out(2)' }, '<0.4')
+          .fromTo('.field, .row, .cta', { y: 22, opacity: 0, filter: 'blur(6px)' }, { y: 0, opacity: 1, filter: 'blur(0px)', duration: 0.9, stagger: 0.09 }, '<0.1')
+          .from('.foot',        { opacity: 0, duration: 1 }, '<0.3');
+
+        // Respiración de la aurora (escala lenta encima de la rotación CSS)
+        gsap.to('.bg-aurora', { scale: 1.12, opacity: 0.95, duration: 9, yoyo: true, repeat: -1, ease: 'sine.inOut' });
+
+        // Parallax + tilt 3D sutil (quickTo = cero churn por evento)
+        var rx = gsap.quickTo('.panel', 'rotationX', { duration: 1.1, ease: 'power3.out' });
+        var ry = gsap.quickTo('.panel', 'rotationY', { duration: 1.1, ease: 'power3.out' });
+        document.addEventListener('mousemove', function(e) {
+          var mx = (e.clientX / window.innerWidth - 0.5);
+          var my = (e.clientY / window.innerHeight - 0.5);
+          gsap.to('.bg-glow', { x: mx*34, y: my*24, duration: 2.6, ease: 'power2.out' });
+          gsap.to('.logo-frame', { x: mx*10, y: my*8, duration: 1.6, ease: 'power2.out' });
+          ry(mx * 4); rx(-my * 3);  // máx ±2° — vida, no mareo
+        });
+        document.addEventListener('mouseleave', function() { ry(0); rx(0); });
+
+        // CTA: magnetismo + highlight que sigue al puntero + shine periódico en idle
+        var cta = document.getElementById('login-btn');
+        if (cta) {
+          var setMx = gsap.quickSetter(cta, '--mx', 'px');
+          var setMy = gsap.quickSetter(cta, '--my', 'px');
+          cta.addEventListener('mousemove', function(e) {
+            var r = cta.getBoundingClientRect();
+            gsap.to(cta, { x: ((e.clientX - r.left - r.width/2) / r.width) * 6, duration: .4, ease: 'power2.out' });
+            setMx(e.clientX - r.left); setMy(e.clientY - r.top);
+          });
+          cta.addEventListener('mouseleave', function() { gsap.to(cta, { x: 0, duration: .6, ease: 'elastic.out(1,0.5)' }); });
+          function idleShine() {
+            if (!cta.classList.contains('is-loading')) {
+              gsap.fromTo('.cta-shine', { backgroundPosition: '-120% 0%' }, { backgroundPosition: '120% 0%', duration: 1.4, ease: 'power2.inOut' });
+            }
+            gsap.delayedCall(7, idleShine);
+          }
+          gsap.delayedCall(4, idleShine);
+        }
+      })();
+    });
+
+    // ── Auth ──
+    (function initAuth() {
+      var sb = window._SB;
+      sb.getSession().then(function(r) { if (r.data && r.data.session) window.location.replace('Canvas Prototype.html'); });
+
+      var form = document.getElementById('login-form');
+      var errEl = document.getElementById('login-error');
+      var btn = document.getElementById('login-btn');
+      var ctaText = document.getElementById('cta-text');
+      var forgot = document.getElementById('forgot-link');
+
+      function showError(msg, ok) {
+        errEl.textContent = msg; errEl.style.display = 'block';
+        errEl.style.background = ok ? 'rgba(110,231,183,0.08)' : 'rgba(225,90,110,0.08)';
+        errEl.style.color = ok ? '#9EE6C4' : '#F0A0AC';
+        errEl.style.borderColor = ok ? 'rgba(110,231,183,0.25)' : 'rgba(225,90,110,0.25)';
+        if (!ok) {
+          errEl.style.animation = 'none'; void errEl.offsetWidth; errEl.style.animation = 'shake .4s';
+          if (typeof gsap !== 'undefined') gsap.fromTo('.cta', { x: 0 }, { x: 6, duration: .07, repeat: 5, yoyo: true, ease: 'none', clearProps: 'x' });
+        }
+      }
+      function setLoading(on) {
+        btn.disabled = on;
+        btn.classList.toggle('is-loading', on);
+        btn.setAttribute('aria-busy', on ? 'true' : 'false');
+        ctaText.textContent = on ? 'Verificando…' : 'Acceder';
+      }
+
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var email = document.getElementById('login-email').value.trim().toLowerCase();
+        var pass = document.getElementById('login-pass').value;
+        var remember = !!document.getElementById('remember').checked;
+        if (!email || !pass) { showError('Email y contraseña son obligatorios.'); return; }
+        errEl.style.display = 'none'; setLoading(true);
+        var res = await sb.signInWithPassword({ email: email, password: pass, remember: remember });
+        if (res.error) {
+          setLoading(false);
+          var m = (res.error.message || '').toLowerCase();
+          if (res.error.network) showError('Sin conexión con el servidor de acceso. Comprueba tu red e inténtalo de nuevo.');
+          else if (m.includes('invalid') || m.includes('credentials')) showError('Email o contraseña incorrectos.');
+          else if (m.includes('confirm') || m.includes('verify')) showError('Confirma tu email antes de acceder.');
+          else if (m.includes('rate') || m.includes('too many')) showError('Demasiados intentos. Espera unos minutos.');
+          else showError(res.error.message);
+          return;
+        }
+        localStorage.setItem('cdpro-user-email', res.data.user.email);
+        localStorage.setItem('cdpro-user-id', res.data.user.id);
+        // Éxito: check dibujado + texto morph + veil circular desde el botón
+        btn.classList.remove('is-loading'); btn.classList.add('is-success');
+        if (typeof gsap !== 'undefined') {
+          var r = btn.getBoundingClientRect();
+          var cx = r.left + r.width/2, cy = r.top + r.height/2;
+          var veil = document.querySelector('.exit-veil');
+          veil.style.clipPath = 'circle(0% at ' + cx + 'px ' + cy + 'px)';
+          veil.style.visibility = 'visible';
+          var out = gsap.timeline({ onComplete: function() { window.location.replace('Canvas Prototype.html'); } });
+          out.to('#cta-text', { opacity: 0, y: -8, duration: .22 })
+             .add(function(){ ctaText.textContent = 'Bienvenido'; })
+             .to('#cta-text', { opacity: 1, y: 0, duration: .28 })
+             .to('#check-path', { strokeDashoffset: 0, duration: .4, ease: 'power2.out' }, '<')
+             .to('.field, .row, .foot', { y: -14, opacity: 0, duration: .35, stagger: .04, ease: 'power3.in' }, '+=0.25')
+             .to('.logo-ring', { scale: 1.8, opacity: 0, duration: .5 }, '<')
+             .to('.brand-lockup, .tagline, .sub-tagline, .divider-lux', { y: -20, opacity: 0, duration: .4 }, '<0.05')
+             .to(veil, { clipPath: 'circle(150% at ' + cx + 'px ' + cy + 'px)', duration: .6, ease: 'power3.inOut' }, '<0.15');
+        } else {
+          ctaText.textContent = 'Bienvenido';
+          setTimeout(function() { window.location.replace('Canvas Prototype.html'); }, 350);
+        }
+      });
+
+      forgot.addEventListener('click', async function(e) {
+        e.preventDefault();
+        var email = document.getElementById('login-email').value.trim().toLowerCase();
+        if (!email) { showError('Escribe tu email arriba para recuperar la contraseña.'); return; }
+        var res = await sb.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/Login.html' });
+        if (res.error) {
+          showError(res.error.network ? 'Sin conexión — no se pudo enviar el correo. Reintenta.' : 'Error: ' + res.error.message);
+          return;
+        }
+        showError('✓ Correo de recuperación enviado. Revisa tu bandeja.', true);
+      });
+    })();
+  </script>
+</body>
+</html>

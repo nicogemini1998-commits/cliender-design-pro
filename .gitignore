@@ -12,7 +12,9 @@
 node_modules/
 .pnpm-store/
 dist/
+build/
 .next/
+out/
 .vite/
 *.local
 
@@ -25,6 +27,10 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+
+# Remotion / render artifacts
+remotion/out/
+*.mp4
 
 # Scraps / debug (no relevante para el equipo)
 99. SCRAPS/screenshots-debug/
@@ -40,6 +46,8 @@ Thumbs.db
 *.swp
 *.swo
 ~$*
+.idea/
+.vscode/
 
 # Backups hex-line
 *.backup

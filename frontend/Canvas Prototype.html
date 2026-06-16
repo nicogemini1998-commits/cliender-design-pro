@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cliender Desing Pro V1 — Canvas + Supercomputer</title>
+  <!-- AUTH GUARD — fetch nativo, sin SDK externo (sin dependencia de CDN) -->
+  <script>
+    (function() {
+      var LS_KEY = 'sb-opjwsdaphsulnpuvpout-auth-token';
+      var SB_URL = 'https://opjwsdaphsulnpuvpout.supabase.co';
+      var ANON   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wandzZGFwaHN1bG5wdXZwb3V0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4ODM4NTgsImV4cCI6MjA5NTQ1OTg1OH0.hnbr1kRUizsa6-9CwPjSXWX1aqKFDjDcgKpLFhHewHg';
+
+      // El token vive en localStorage (Recordarme ON) o sessionStorage (OFF) — paridad con Login.
+      function readTok() {
+        try {
+          var raw = sessionStorage.getItem(LS_KEY) || localStorage.getItem(LS_KEY);
+          if (!raw) return null;
+          var tok = JSON.parse(raw);
+          return (tok && tok.access_token) ? tok : null;
+        } catch(e) { return null; }
+      }
+      function tokAlive(tok) { return !(tok.expires_at && Date.now()/1000 > tok.expires_at - 60); }
+
+      window.__cdproSignOut = function() {
+        try {
+          var tok = readTok();
+          if (tok && tokAlive(tok)) { fetch(SB_URL+'/auth/v1/logout', { method:'POST', headers:{'apikey':ANON,'Authorization':'Bearer '+tok.access_token} }); }
+        } catch(e) {}
+        localStorage.removeItem(LS_KEY); sessionStorage.removeItem(LS_KEY);
+        // Limpiar TODO el estado por-usuario (máquina compartida: el siguiente no hereda nada).
+        ['cdpro-user-email','cdpro-user-id','cliender-profile','cdp-ctx-client','cdp-ctx-mb'].forEach(function(k){ try{localStorage.removeItem(k);}catch(e){} });
+        window.location.replace('Login.html');
+      };
+
+      // Logout coherente multi-pestaña: si otra tab borra el token, esta sale también.
+      window.addEventListener('storage', function(e) {
+        if (e.key === LS_KEY && !e.newValue && !sessionStorage.getItem(LS_KEY)) {
+          window.location.replace('Login.html');
+        }
+      });
+
+      // Verificar sesión — ocultar app hasta confirmar
+      document.documentElement.style.visibility = 'hidden';
+      var tok = readTok();
+      var clerkMark = localStorage.getItem('cdpro-user-email') && localStorage.getItem('cdpro-user-id');
+      if (!tok && !clerkMark) {
+        window.location.replace('Login.html');
+      } else {
+        if (tok && tok.user && tok.user.email) localStorage.setItem('cdpro-user-email', tok.user.email);
+        document.documentElement.style.visibility = '';
+        // Token expirado pero con refresh_token → renovar en BACKGROUND, sin expulsar
+        // al usuario en mitad del trabajo (antes la sesión moría a la hora en seco).
+        if (tok && !tokAlive(tok) && tok.refresh_token) {
+          fetch(SB_URL+'/auth/v1/token?grant_type=refresh_token', {
+            method:'POST', headers:{'apikey':ANON,'Content-Type':'application/json'},
+            body: JSON.stringify({refresh_token: tok.refresh_token})
+          }).then(function(r){ return r.json(); }).then(function(d) {
+            if (d && d.access_token) {
+              var session = Object.assign({}, d, {expires_at: Math.floor(Date.now()/1000) + (d.expires_in||3600)});
+              var store = localStorage.getItem(LS_KEY) ? localStorage : sessionStorage;
+              store.setItem(LS_KEY, JSON.stringify(session));
+            }
+          }).catch(function(){});
+        }
+      }
+    })();
+  </script>
+
+  <!-- Fuentes -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" />
+
+  <link rel="stylesheet" href="prototype/styles.css" />
+  <link rel="stylesheet" href="prototype/vault.css" />
+  <link rel="stylesheet" href="prototype/nodes-v2.css" />
+  <link rel="stylesheet" href="prototype/ui.css" />
+  <link rel="stylesheet" href="prototype/leftmenu.css" />
+  <link rel="stylesheet" href="prototype/liquid.css" />
+  <link rel="stylesheet" href="prototype/motion.css" />
+  <link rel="stylesheet" href="prototype/analytics.css" />
+
+  <!-- Cliender brand tokens (paleta oficial + Manrope/Inconsolata) — SIEMPRE ÚLTIMO para sobreescribir tokens -->
+  <link rel="stylesheet" href="prototype/astronaut.css" />
+  <link rel="stylesheet" href="prototype/cliender-brand.css" />
+
+  <!-- SuperComputer rediseño "lujo silencioso" — DESPUÉS de liquid.css + brand para ganar cascada -->
+  <link rel="stylesheet" href="prototype/supercomputer.css" />
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Veil de ENTRADA: empalma con el portal del login (mismo fondo) y oculta el arranque/transpilacion.
+       Se desvanece cuando React monta (#root con hijos) o a los 6s (failsafe). Continuidad sin flash. -->
+  <div id="enter-veil"></div>
+  <style>
+    #enter-veil { position: fixed; inset: 0; z-index: 99999; pointer-events: none;
+      background: radial-gradient(70vmax 60vmax at 50% 45%, #15131c 0%, #0a0a0f 55%, #060608 100%);
+      opacity: 1; transition: opacity .75s cubic-bezier(0.22,1,0.36,1); }
+    /* Eco del portal: resplandor violeta central que "llega" del salto warp del login y se disipa. */
+    #enter-veil::after {
+      content: ""; position: absolute; top: 50%; left: 50%;
+      width: 60vmax; height: 60vmax; margin: -30vmax 0 0 -30vmax; border-radius: 50%;
+      background: radial-gradient(circle, rgba(196,181,253,0.34), rgba(124,58,237,0.16) 45%, transparent 70%);
+      animation: veilEcho 1.4s cubic-bezier(0.22,1,0.36,1) forwards;
+    }
+    @keyframes veilEcho { from { transform: scale(1.5); opacity: 1; } to { transform: scale(0.55); opacity: 0; } }
+    #enter-veil.gone { opacity: 0; }
+    /* Llegada inmersiva: la herramienta ENFOCA — entra con leve zoom-out + desenfoque que se aclara,
+       como si la cámara aterrizara del salto. Solo transform+filter en #root (compositor-friendly). */
+    body.app-arrive #root { animation: appFocus .95s cubic-bezier(0.22,1,0.36,1) both; }
+    @keyframes appFocus {
+      from { transform: scale(1.05); filter: blur(12px) saturate(1.3); opacity: .65; }
+      to   { transform: scale(1);    filter: blur(0)    saturate(1);   opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) { body.app-arrive #root { animation: none; } #enter-veil::after { animation: none; opacity: 0; } }
+  </style>
+  <script>
+    (function(){
+      var veil = document.getElementById('enter-veil');
+      var root = document.getElementById('root');
+      var t0 = Date.now();
+      function mounted(){ return root && root.children && root.children.length > 0; }
+      function hide(){ if(!veil) return; document.body.classList.add('app-arrive'); veil.classList.add('gone'); setTimeout(function(){ if(veil.parentNode) veil.parentNode.removeChild(veil); }, 850); }
+      var iv = setInterval(function(){
+        if (mounted() || Date.now() - t0 > 6000) { clearInterval(iv); setTimeout(hide, 150); }
+      }, 90);
+    })();
+  </script>
+
+  <!-- Silencia advertencias de React dev-mode (PropTypes, StrictMode) que no son errores funcionales -->
+  <script>
+    (function() {
+      var _ce = console.error.bind(console);
+      console.error = function() {
+        var msg = arguments[0] || '';
+        if (typeof msg === 'string' && (
+          msg.includes('Warning:') || msg.includes('Each child') ||
+          msg.includes('validateDOMNesting') || msg.includes('findDOMNode') ||
+          msg.includes('ReactDOM.render') || msg.includes('act(')
+        )) return;
+        _ce.apply(console, arguments);
+      };
+    })();
+  </script>
+
+  <!-- React (pinned) — JSX precompilado con esbuild en build; SIN Babel en runtime -->
+  <!-- Runtime config (plain JS, must load before any jsx) -->
+  <script src="prototype/config.js"></script>
+
+  <!-- React PRODUCTION: mitad de peso y renders notablemente más rápidos que la build development -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
+
+  <!-- Three.js (astronauta 3D + shader loader): defer — no bloquea el arranque; nada lo usa hasta runtime -->
+  <script defer src="https://unpkg.com/three@0.160.0/build/three.min.js" integrity="sha384-qOkzR5Ke/XkQxuGVJ9hpFEpDlcoLtWwVYhnJf06cLIZa2vaIptSqaubivErzmD5O" crossorigin="anonymous"></script>
+
+  <script src="prototype/nodes.js"></script>
+  <script src="prototype/vault.js"></script>
+  <script src="prototype/ui.js"></script>
+  <script src="prototype/leftmenu.js"></script>
+  <script src="prototype/analytics.js"></script>
+  <script src="prototype/astronaut.js"></script>
+  <script src="prototype/app.js"></script>
+</body>
+</html>

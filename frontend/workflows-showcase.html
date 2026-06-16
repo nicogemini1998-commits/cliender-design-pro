@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flujos de Creación · Cliender Design Pro V1</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-dark: #0A0A14;
+            --bg-card: #12121E;
+            --bg-hover: #1A1A2E;
+            --color-violet: #A78BFA;
+            --color-violet-light: #D8B4FE;
+            --color-green: #10B981;
+            --color-amber: #F59E0B;
+            --color-text: #F3F4F6;
+            --color-text-muted: #9CA3AF;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--bg-dark) 0%, #16213E 100%);
+            color: var(--color-text);
+            font-family: 'Inter', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Fondo animado con gradiente */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(ellipse at 20% 50%, rgba(167, 139, 250, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Header */
+        header {
+            position: relative;
+            z-index: 10;
+            padding: 4rem 2rem;
+            text-align: center;
+            border-bottom: 1px solid rgba(167, 139, 250, 0.1);
+            background: rgba(10, 10, 20, 0.7);
+            backdrop-filter: blur(10px);
+        }
+
+        header h1 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 800;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--color-violet) 0%, var(--color-amber) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+        }
+
+        header p {
+            font-size: 1.1rem;
+            color: var(--color-text-muted);
+            max-width: 600px;
+            margin: 0 auto;
+            font-weight: 300;
+            line-height: 1.6;
+        }
+
+        /* Container principal */
+        .container {
+            position: relative;
+            z-index: 5;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+        }
+
+        /* Grid de tarjetas */
+        .workflows-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+            gap: 2rem;
+            margin-bottom: 4rem;
+        }
+
+        @media (max-width: 1024px) {
+            .workflows-grid {
+                grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+                gap: 1.5rem;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .workflows-grid {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+        }
+
+        /* Tarjeta de flujo */
+        .workflow-card {
+            position: relative;
+            background: rgba(18, 18, 30, 0.8);
+            border: 1px solid rgba(167, 139, 250, 0.15);
+            border-radius: 16px;
+            padding: 1.75rem;
+            cursor: pointer;
+            transition: var(--transition);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+
+        .workflow-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(167, 139, 250, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .workflow-card:hover {
+            border-color: rgba(167, 139, 250, 0.4);
+            background: rgba(18, 18, 30, 0.95);
+            transform: translateY(-8px);
+            box-shadow: 0 20px 50px rgba(167, 139, 250, 0.15);
+        }
+
+        .workflow-card:hover::before {
+            opacity: 1;
+        }
+
+        .card-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .workflow-badge {
+            display: inline-block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.4rem 0.9rem;
+            background: rgba(167, 139, 250, 0.15);
+            border: 1px solid rgba(167, 139, 250, 0.3);
+            border-radius: 20px;
+            margin-bottom: 1rem;
+            color: var(--color-violet-light);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .workflow-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: var(--color-text);
+            letter-spacing: -0.01em;
+        }
+
+        .workflow-description {
+            font-size: 0.95rem;
+            color: var(--color-text-muted);
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+            font-weight: 300;
+        }
+
+        /* Diagrama de flujo */
+        .flow-diagram {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 1.5rem 1rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(167, 139, 250, 0.1);
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .flow-diagram::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.05), transparent);
+            animation: shimmer 3s infinite;
+            pointer-events: none;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .nodes-container {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .node {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-align: center;
+            padding: 0.5rem;
+            white-space: nowrap;
+            position: relative;
+            border: 2px solid transparent;
+            transition: var(--transition);
+            color: var(--color-text);
+        }
+
+        .node.prompt {
+            background: rgba(167, 139, 250, 0.2);
+            border-color: var(--color-violet);
+            color: var(--color-violet-light);
+        }
+
+        .node.imagen {
+            background: rgba(245, 158, 11, 0.2);
+            border-color: var(--color-amber);
+            color: var(--color-amber);
+        }
+
+        .node.video {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: #3B82F6;
+            color: '#93C5FD';
+        }
+
+        .node.voz {
+            background: rgba(236, 72, 153, 0.2);
+            border-color: #EC4899;
+            color: '#F472B6';
+        }
+
+        .node.nota {
+            background: rgba(16, 185, 129, 0.2);
+            border-color: var(--color-green);
+            color: var(--color-green);
+        }
+
+        .node.repetition {
+            font-size: 0.65rem;
+        }
+
+        .arrow {
+            font-size: 1.2rem;
+            color: rgba(167, 139, 250, 0.4);
+            animation: pulse-arrow 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse-arrow {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+
+        /* Animación de nodos en flujo */
+        .flow-diagram.active .node {
+            animation: node-pulse 0.6s ease-out;
+        }
+
+        @keyframes node-pulse {
+            0% {
+                transform: scale(0.8);
+                box-shadow: 0 0 0 0 rgba(167, 139, 250, 0.7);
+            }
+            50% {
+                box-shadow: 0 0 0 8px rgba(167, 139, 250, 0.3);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(167, 139, 250, 0);
+            }
+        }
+
+        .node.animating {
+            background: var(--color-violet);
+            border-color: var(--color-violet-light);
+            color: var(--bg-dark);
+            box-shadow: 0 0 20px rgba(167, 139, 250, 0.6);
+        }
+
+        /* Detalles de la tarjeta */
+        .card-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(167, 139, 250, 0.1);
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .detail-label {
+            font-size: 0.75rem;
+            color: var(--color-text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+        }
+
+        .detail-value {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--color-text);
+        }
+
+        .detail-value.time {
+            color: var(--color-green);
+        }
+
+        .detail-value.cost {
+            color: var(--color-amber);
+        }
+
+        /* Casos de uso */
+        .use-cases {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(167, 139, 250, 0.1);
+        }
+
+        .use-cases-label {
+            font-size: 0.75rem;
+            color: var(--color-text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+
+        .use-cases-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+        }
+
+        .use-case-tag {
+            font-size: 0.8rem;
+            padding: 0.4rem 0.8rem;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 12px;
+            color: var(--color-green);
+            font-weight: 500;
+            transition: var(--transition);
+        }
+
+        .workflow-card:hover .use-case-tag {
+            background: rgba(16, 185, 129, 0.2);
+            border-color: rgba(16, 185, 129, 0.6);
+        }
+
+        /* Footer */
+        footer {
+            position: relative;
+            z-index: 10;
+            padding: 3rem 2rem;
+            text-align: center;
+            border-top: 1px solid rgba(167, 139, 250, 0.1);
+            background: rgba(10, 10, 20, 0.7);
+            backdrop-filter: blur(10px);
+        }
+
+        .footer-content {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .footer-text {
+            font-size: 1rem;
+            color: var(--color-text-muted);
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .cta-button {
+            display: inline-block;
+            padding: 0.9rem 2.5rem;
+            background: linear-gradient(135deg, var(--color-violet) 0%, var(--color-amber) 100%);
+            color: var(--bg-dark);
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1rem;
+            letter-spacing: -0.01em;
+            transition: var(--transition);
+            border: 2px solid transparent;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(167, 139, 250, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.2);
+            transition: left 0.3s ease;
+            z-index: -1;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 15px 40px rgba(167, 139, 250, 0.4);
+        }
+
+        .cta-button:hover::before {
+            left: 100%;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            header {
+                padding: 2rem 1.5rem;
+            }
+
+            header h1 {
+                font-size: 1.8rem;
+            }
+
+            .container {
+                padding: 2rem 1rem;
+            }
+
+            .card-details {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Scrollbar personalizado */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(167, 139, 250, 0.3);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(167, 139, 250, 0.5);
+        }
+
+        /* Animación de carga */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .workflow-card {
+            animation: fadeInUp 0.6s ease-out forwards;
+        }
+
+        .workflow-card:nth-child(1) { animation-delay: 0.1s; }
+        .workflow-card:nth-child(2) { animation-delay: 0.2s; }
+        .workflow-card:nth-child(3) { animation-delay: 0.3s; }
+        .workflow-card:nth-child(4) { animation-delay: 0.4s; }
+        .workflow-card:nth-child(5) { animation-delay: 0.5s; }
+        .workflow-card:nth-child(6) { animation-delay: 0.6s; }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <h1>Flujos de Creación</h1>
+        <p>Descubre los diferentes flujos de trabajo disponibles en Cliender Design Pro V1. Conecta nodos para crear campañas de contenido personalizadas desde prompt hasta el resultado final.</p>
+    </header>
+
+    <!-- Container principal -->
+    <div class="container">
+        <div class="workflows-grid">
+            <!-- Tarjeta 1: Imagen de marca -->
+            <div class="workflow-card">
+                <div class="card-content">
+                    <span class="workflow-badge">Básico</span>
+                    <h2 class="workflow-title">Imagen de Marca</h2>
+                    <p class="workflow-description">Crea imágenes de alta calidad para redes sociales con un solo flujo directo.</p>
+                    
+                    <div class="flow-diagram">
+                        <div class="nodes-container">
+                            <div class="node prompt" data-node="prompt">SHAQ</div>
+                            <div class="arrow">→</div>
+                            <div class="node imagen" data-node="imagen">KIE</div>
+                        </div>
+                    </div>
+
+                    <div class="card-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Tiempo</span>
+                            <span class="detail-value time">2-3 min</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Coste</span>
+                            <span class="detail-value cost">~0.05€</span>
+                        </div>
+                    </div>
+
+                    <div class="use-cases">
+                        <span class="use-cases-label">Casos de uso</span>
+                        <div class="use-cases-list">
+                            <span class="use-case-tag">Posts Instagram</span>
+                            <span class="use-case-tag">Banners</span>
+                            <span class="use-case-tag">Portadas</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tarjeta 2: Video animado -->
+            <div class="workflow-card">
+                <div class="card-content">
+                    <span class="workflow-badge">Intermedio</span>
+                    <h2 class="workflow-title">Video Animado</h2>
+                    <p class="workflow-description">Transforma una imagen estática en un video dinámico con movimiento y vida.</p>
+                    
+                    <div class="flow-diagram">
+                        <div class="nodes-container">
+                            <div class="node prompt" data-node="prompt">SHAQ</div>
+                            <div class="arrow">→</div>
+                            <div class="node imagen" data-node="imagen">KIE</div>
+                            <div class="arrow">→</div>
+                            <div class="node video" data-node="video">Seed</div>
+                        </div>
+                    </div>
+
+                    <div class="card-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Tiempo</span>
+                            <span class="detail-value time">5-8 min</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Coste</span>
+                            <span class="detail-value cost">~0.15€</span>
+                        </div>
+                    </div>
+
+                    <div class="use-cases">
+                        <span class="use-cases-label">Casos de uso</span>
+                        <div class="use-cases-list">
+                            <span class="use-case-tag">Reels</span>
+                            <span class="use-case-tag">Promos</span>
+                            <span class="use-case-tag">TikToks</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tarjeta 3: Video con narración -->
+            <div class="workflow-card">
+                <div class="card-content">
+                    <span class="workflow-badge">Avanzado</span>
+                    <h2 class="workflow-title">Video con Narración</h2>
+                    <p class="workflow-description">Video animado con voz en off profesional sincronizada perfectamente.</p>
+                    
+                    <div class="flow-diagram">
+                        <div class="nodes-container">
+                            <div class="node prompt" data-node="prompt">SHAQ</div>
+                            <div class="arrow">→</div>
+                            <div class="node imagen" data-node="imagen">KIE</div>
+                            <div class="arrow">→</div>
+                            <div class="node voz" data-node="voz">VOZ</div>
+                            <div class="arrow">→</div>
+                            <div class="node video" data-node="video">Seed</div>
+                        </div>
+                    </div>
+
+                    <div class="card-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Tiempo</span>
+                            <span class="detail-value time">8-12 min</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Coste</span>
+                            <span class="detail-value cost">~0.28€</span>
+                        </div>
+                    </div>
+
+                    <div class="use-cases">
+                        <span class="use-cases-label">Casos de uso</span>
+                        <div class="use-cases-list">
+                            <span class="use-case-tag">Publicidad</span>
+                            <span class="use-case-tag">Tutoriales</span>
+                            <span class="use-case-tag">Storytelling</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tarjeta 4: Campaña completa -->
+            <div class="workflow-card">
+                <div class="card-content">
+                    <span class="workflow-badge">Premium</span>
+                    <h2 class="workflow-title">Campaña Completa</h2>
+                    <p class="workflow-description">Genera múltiples variantes visuales y animadas en un solo batch.</p>
+                    
+                    <div class="flow-diagram">
+                        <div class="nodes-container">
+                            <div class="node prompt" data-node="prompt">SHAQ</div>
+                            <div class="arrow">→</div>
+                            <div class="node imagen repetition" data-node="imagen">KIE×3</div>
+                            <div class="arrow">→</div>
+                            <div class="node video repetition" data-node="video">Seed×3</div>
+                        </div>
+                    </div>
+
+                    <div class="card-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Tiempo</span>
+                            <span class="detail-value time">15-20 min</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Coste</span>
+                            <span class="detail-value cost">~0.45€</span>
+                        </div>
+                    </div>
+
+                    <div class="use-cases">
+                        <span class="use-cases-label">Casos de uso</span>
+                        <div class="use-cases-list">
+                            <span class="use-case-tag">A/B Testing</span>
+                            <span class="use-case-tag">Campañas</span>
+                            <span class="use-case-tag">Multi-variante</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tarjeta 5: Video postcard estilo omgadrian -->
+            <div class="workflow-card">
+                <div class="card-content">
+                    <span class="workflow-badge">Experto</span>
+                    <h2 class="workflow-title">Video Postcard omgadrian</h2>
+                    <p class="workflow-description">Crea videos estilo postcard con múltiples escenas y transiciones fluidas.</p>
+                    
+                    <div class="flow-diagram">
+                        <div class="nodes-container">
+                            <div class="node prompt repetition" data-node="prompt">SHAQ×5</div>
+                            <div class="arrow">→</div>
+                            <div class="node imagen repetition" data-node="imagen">KIE×5</div>
+                            <div class="arrow">→</div>
+                            <div class="node video repetition" data-node="video">Seed×5</div>
+                        </div>
+                    </div>
+
+                    <div class="card-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Tiempo</span>
+                            <span class="detail-value time">20-30 min</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Coste</span>
+                            <span class="detail-value cost">~0.75€</span>
+                        </div>
+                    </div>
+
+                    <div class="use-cases">
+                        <span class="use-cases-label">Casos de uso</span>
+                        <div class="use-cases-list">
+                            <span class="use-case-tag">Presentaciones</span>
+                            <span class="use-case-tag">Documentales</span>
+                            <span class="use-case-tag">Narrativos</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tarjeta 6: Batch de contenido -->
+            <div class="workflow-card">
+                <div class="card-content">
+                    <span class="workflow-badge">Máximo</span>
+                    <h2 class="workflow-title">Batch de Contenido</h2>
+                    <p class="workflow-description">Produce 10 variantes de contenido simultáneamente para máxima cobertura.</p>
+                    
+                    <div class="flow-diagram">
+                        <div class="nodes-container">
+                            <div class="node prompt repetition" data-node="prompt">SHAQ×10</div>
+                            <div class="arrow">→</div>
+                            <div class="node imagen repetition" data-node="imagen">KIE×10</div>
+                        </div>
+                    </div>
+
+                    <div class="card-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Tiempo</span>
+                            <span class="detail-value time">25-35 min</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Coste</span>
+                            <span class="detail-value cost">~0.50€</span>
+                        </div>
+                    </div>
+
+                    <div class="use-cases">
+                        <span class="use-cases-label">Casos de uso</span>
+                        <div class="use-cases-list">
+                            <span class="use-case-tag">Calendarios</span>
+                            <span class="use-case-tag">Masivo</span>
+                            <span class="use-case-tag">Colecciones</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <p class="footer-text">Comienza a crear flujos personalizados y potencia tu creatividad con Cliender Design Pro V1. Todos los nodos funcionan de forma integrada para brindarte control total sobre tu contenido.</p>
+            <a href="http://localhost:2002" class="cta-button">Abrir Herramienta</a>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const cards = document.querySelectorAll('.workflow-card');
+
+            cards.forEach(card => {
+                const flowDiagram = card.querySelector('.flow-diagram');
+                const nodes = flowDiagram.querySelectorAll('.node');
+
+                card.addEventListener('mouseenter', function() {
+                    flowDiagram.classList.add('active');
+                    animateFlowSequence(nodes);
+                });
+
+                card.addEventListener('mouseleave', function() {
+                    flowDiagram.classList.remove('active');
+                    nodes.forEach(node => {
+                        node.classList.remove('animating');
+                    });
+                });
+            });
+
+            function animateFlowSequence(nodes) {
+                nodes.forEach((node, index) => {
+                    setTimeout(() => {
+                        node.classList.add('animating');
+                        setTimeout(() => {
+                            node.classList.remove('animating');
+                        }, 600);
+                    }, index * 200);
+                });
+            }
+
+            // Animación continua en viewport
+            const observerOptions = {
+                threshold: 0.1,
+                rootMargin: '0px'
+            };
+
+            const observer = new IntersectionObserver(function(entries) {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.style.animationPlayState = 'running';
+                    }
+                });
+            }, observerOptions);
+
+            cards.forEach(card => {
+                observer.observe(card);
+            });
+        });
+    </script>
+</body>
+</html>
