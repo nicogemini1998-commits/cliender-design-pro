@@ -1,0 +1,179 @@
+# ══════════════════════════════════════════════════════════════════════════
+#  Cliender Desing Pro V1
+#  Prototipo aislado de construcción · desarrollo · pruebas
+#  ----------------------------------------------------------------------
+#  REGLA INVIOLABLE (Nico · 2026-05-22):
+#    Este stack es un SANDBOX. NO mezclar ni reemplazar Studio, LeadUp,
+#    RStudio, iuralex u otras apps de Cliender hasta orden explícita.
+#  ----------------------------------------------------------------------
+#  Servicios:
+#    cdpro-backend     :3003 (host) → :8000 (container)  FastAPI + LangGraph
+#    cdpro-prototype   :2002 (host) → :80   (container)  nginx HTML
+#    cdpro-frontend    :1004 (host) → :3000 (container)  Next.js
+#
+#  Puertos canónicos: ver 08. INFRA & DOCKER CLIENDER/00. ARQUITECTURA/PUERTOS.md
+# ══════════════════════════════════════════════════════════════════════════
+
+name: cliender-desingpro-v1
+
+# Defaults aplicados a TODOS los servicios (log rotation + init + restart)
+x-base: &cdpro-base
+  init: true                       # M6: reaper de zombies
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"              # M5: log rotation
+      max-file: "3"
+
+services:
+
+  # ── Backend FastAPI + LangGraph (Claude + KIE.ai) ──────────────────────
+  cdpro-backend:
+    <<: *cdpro-base
+    container_name: cdpro-backend
+    build:
+      context: ../03. BACKEND FASTAPI
+      dockerfile: Dockerfile
+    image: cliender-desingpro/backend:0.1.0
+    mem_limit: 1536m          # M3: aislar RAM — evita que un pico tumbe el VPS
+    cpus: 1.5
+    env_file:
+      - .env.cdpro
+    ports:
+      - "3003:8000"
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-dev}
+      CORS_ORIGINS: '["http://localhost:1004","http://localhost:2002","http://cdpro-frontend:3000","http://cdpro-prototype"]'
+      # Secrets (ANTHROPIC_API_KEY, KIE_API_KEY, KIE_CALLBACK_URL, SUPABASE_URL,
+      # SUPABASE_SERVICE_KEY) vienen de env_file: .env.cdpro (en esta carpeta)
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-5}
+      CLAUDE_MAX_TOKENS: ${CLAUDE_MAX_TOKENS:-4096}
+      KIE_BASE_URL: ${KIE_BASE_URL:-https://api.kie.ai}
+      CRITIC_MAX_RETRIES: ${CRITIC_MAX_RETRIES:-2}
+      ANALYTICS_DAILY_LIMIT_USD: ${ANALYTICS_DAILY_LIMIT_USD:-10}
+      REMOTION_URL: ${REMOTION_URL:-http://cdpro-remotion:4000}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3); sys.exit(0)"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - cdpro-net
+    labels:
+      cliender.project: "cliender-desingpro-v1"
+      cliender.role: "prototype-sandbox"
+    security_opt:
+      - no-new-privileges:true
+
+  # ── Prototipo HTML (nginx) — UI funcional inmediata ────────────────────
+  cdpro-prototype:
+    <<: *cdpro-base
+    container_name: cdpro-prototype
+    build:
+      context: ../01. PROTOTIPO HTML
+      dockerfile: Dockerfile
+    image: cliender-desingpro/prototype:0.1.0
+    env_file:
+      - .env.cdpro
+    # A1: el prototype/ ya NO se bind-montea. Los .jsx se precompilan a .js en el
+    # Dockerfile (esbuild, sin Babel en el navegador) y van dentro de la imagen.
+    # Un bind-mount del source .jsx taparía los .js compilados y rompería la carga.
+    # Iterar en dev = `docker compose up -d --build cdpro-prototype`.
+    # index.html (Canvas Prototype.html), Login.html y nginx.conf van COPY en el Dockerfile.
+    ports:
+      - "2002:80"
+    depends_on:
+      cdpro-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - cdpro-net
+    labels:
+      cliender.project: "cliender-desingpro-v1"
+      cliender.role: "prototype-sandbox"
+    security_opt:
+      - no-new-privileges:true
+    read_only: false   # nginx escribe en /var/cache/nginx, /var/run
+
+  # ── Frontend Next.js (OPCIONAL) ──────────────────────────────────────────
+  # Solo arranca con --profile nextjs. El core stack funciona sin este servicio.
+  # Para activarlo: docker compose --profile nextjs up -d --build
+  cdpro-frontend:
+    <<: *cdpro-base
+    container_name: cdpro-frontend
+    profiles:
+      - nextjs
+    build:
+      context: ../02. PRODUCCION NEXTJS
+      dockerfile: Dockerfile
+    image: cliender-desingpro/frontend:0.1.0
+    env_file:
+      - .env.cdpro
+    ports:
+      - "1004:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      ATELIER_API_URL: http://cdpro-backend:8000
+      NEXT_PUBLIC_PROTOTYPE_URL: http://localhost:2002
+    depends_on:
+      cdpro-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    networks:
+      - cdpro-net
+    labels:
+      cliender.project: "cliender-desingpro-v1"
+      cliender.role: "prototype-sandbox"
+    security_opt:
+      - no-new-privileges:true
+
+  # ── Remotion render service (Node + Chromium) — ensamblaje de video ────
+  cdpro-remotion:
+    <<: *cdpro-base
+    container_name: cdpro-remotion
+    build:
+      context: ../06. REMOTION RENDER
+      dockerfile: Dockerfile
+    image: cliender-desingpro/remotion:0.1.0
+    shm_size: "1gb"           # M3 CRÍTICO: Chromium headless necesita /dev/shm grande
+                              # (default 64MB causa crashes "Target closed" en renders)
+    mem_limit: 2560m
+    cpus: 3
+    env_file:
+      - .env.cdpro
+    ports:
+      - "4010:4000"
+    environment:
+      PORT: "4000"
+      # SUPABASE_URL + SUPABASE_SERVICE_KEY vienen de .env.cdpro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - cdpro-net
+    labels:
+      cliender.project: "cliender-desingpro-v1"
+      cliender.role: "prototype-sandbox"
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  cdpro-net:
+    name: cdpro-net
+    driver: bridge

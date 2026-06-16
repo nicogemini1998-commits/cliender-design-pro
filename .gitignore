@@ -1,0 +1,48 @@
+# ──────────────────────────────────────────────────────────────────────────
+# Cliender Desing Pro V1 — .gitignore
+# ──────────────────────────────────────────────────────────────────────────
+
+# SECRETOS — nunca a git
+05. DEPLOY DOCKER/.env.cdpro
+05. DEPLOY DOCKER/.env
+05. DEPLOY DOCKER/compose-up.log
+*.log
+
+# Node
+node_modules/
+.pnpm-store/
+dist/
+.next/
+.vite/
+*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+.venv/
+venv/
+
+# Scraps / debug (no relevante para el equipo)
+99. SCRAPS/screenshots-debug/
+99. SCRAPS/uploads/
+00. CONTEXTO/assets-ui/
+_bundle-original/scraps/
+_bundle-original/uploads/
+01. PROTOTIPO HTML/prototype/_screenshots-supercomputer/
+
+# Archivos temporales
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+~$*
+
+# Backups hex-line
+*.backup
+
+# OneDrive conflict copies
+*-PC-*.html

@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0A0B10;
+  --surface: #141414;
+  --border: rgba(255, 255, 255, 0.08);
+  --accent-violet: #A78BFA;
+  --accent-emerald: #34D399;
+  --text: #E5E7EB;
+  --text-muted: #9CA3AF;
+  --ease-apple: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
+  letter-spacing: -0.01em;
+}

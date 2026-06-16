@@ -1,0 +1,686 @@
+/* ════════════════════════════════════════════════════════════════════════
+   supercomputer.css — Rediseño SuperStage · "Lujo silencioso"
+   Apple × Hermès × Louis Vuitton · editorial mono-columna · serif display
+   ------------------------------------------------------------------------
+   Cargado DESPUÉS de liquid.css (gana especificidad por orden de cascada).
+   Sistema aislado con prefijo de tokens --sc-*. Reusa el acento de marca
+   real de cliender-brand.css (--cdp-purple) como acento único, con calma.
+
+   ESTRUCTURA
+     1. Tokens (paleta marfil/tinta + acento, escala tipográfica, ritmo)
+     2. Reset de la deuda visual heredada (.cortex-* / blobs / grano / shimmer)
+     3. Layout editorial mono-columna (.sc-*)
+     4. Hero serif, subcopy, referencias, brief, contexto, launch
+     5. Línea de progreso editorial + resultado protagonista (modal)
+     6. Reduced-motion
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Serif editorial de alta gama para el hero ─────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap');
+
+/* ════════════════════════════════════════════════════════════════════════
+   1 · TOKENS
+   ════════════════════════════════════════════════════════════════════════ */
+:root,
+html[data-theme="dark"] {
+  /* Superficie tinta sobria (no negro gamer; tinta cálida desaturada) */
+  --sc-bg:            #15161A;
+  --sc-bg-raise:      #1B1D22;
+  --sc-surface:       #1E2026;
+  --sc-surface-2:     #24262D;
+  --sc-line:          rgba(235, 234, 228, 0.10);
+  --sc-line-strong:   rgba(235, 234, 228, 0.18);
+
+  /* Tinta sobre marfil invertida para dark: marfil sobre tinta */
+  --sc-ink:           #EDECE6;   /* texto principal — marfil */
+  --sc-ink-2:         rgba(237, 236, 230, 0.66);
+  --sc-ink-3:         rgba(237, 236, 230, 0.42);
+  --sc-ink-4:         rgba(237, 236, 230, 0.26);
+
+  /* Acento único de marca, usado con disciplina */
+  --sc-accent:        var(--cdp-purple, #8F7EE9);
+  --sc-accent-soft:   var(--cdp-purple-soft, #B4A7F0);
+  --sc-accent-tint:   rgba(143, 126, 233, 0.12);
+  --sc-accent-line:   rgba(143, 126, 233, 0.30);
+
+  --sc-ok:            #6FBF9B;   /* verde sobrio, no neón */
+  --sc-warn:          #C9A36B;   /* ámbar terroso */
+  --sc-err:           #C98080;   /* rojo apagado */
+
+  /* Botón sólido confiado sobre dark */
+  --sc-btn-bg:        var(--cdp-purple, #8F7EE9);
+  --sc-btn-ink:       #15161A;
+
+  /* Sombras hairline largas y suaves (no halos de neón) */
+  --sc-shadow-soft:   0 1px 2px rgba(0,0,0,0.28), 0 18px 50px -28px rgba(0,0,0,0.65);
+  --sc-shadow-lift:   0 1px 2px rgba(0,0,0,0.30), 0 30px 80px -34px rgba(0,0,0,0.72);
+}
+
+html[data-theme="light"] {
+  /* Superficie marfil/hueso */
+  --sc-bg:            #F4F2EC;
+  --sc-bg-raise:      #FAF8F3;
+  --sc-surface:       #FFFFFF;
+  --sc-surface-2:     #F7F5EF;
+  --sc-line:          rgba(20, 24, 30, 0.10);
+  --sc-line-strong:   rgba(20, 24, 30, 0.16);
+
+  --sc-ink:           #1C1E22;   /* tinta */
+  --sc-ink-2:         rgba(28, 30, 34, 0.66);
+  --sc-ink-3:         rgba(28, 30, 34, 0.46);
+  --sc-ink-4:         rgba(28, 30, 34, 0.30);
+
+  --sc-accent:        var(--cdp-purple-deep, #6F5BD9);
+  --sc-accent-soft:   var(--cdp-purple, #8F7EE9);
+  --sc-accent-tint:   rgba(111, 91, 217, 0.09);
+  --sc-accent-line:   rgba(111, 91, 217, 0.26);
+
+  --sc-ok:            #4E9B78;
+  --sc-warn:          #A57B3E;
+  --sc-err:           #B45959;
+
+  --sc-btn-bg:        var(--cdp-purple-deep, #6F5BD9);
+  --sc-btn-ink:       #FFFFFF;
+
+  --sc-shadow-soft:   0 1px 2px rgba(20,24,30,0.05), 0 16px 44px -26px rgba(20,24,30,0.22);
+  --sc-shadow-lift:   0 1px 2px rgba(20,24,30,0.06), 0 28px 70px -32px rgba(20,24,30,0.28);
+}
+
+:root {
+  /* Tipografía */
+  --sc-serif:  "Playfair Display", "Hoefler Text", Georgia, "Times New Roman", serif;
+  --sc-sans:   "Manrope", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --sc-mono:   "Inconsolata", "JetBrains Mono", ui-monospace, monospace;
+
+  /* Escala display serif (contraste de escala fuerte, pero cabe en el viewport) */
+  --sc-display: clamp(2.2rem, 1.5rem + 2.2vw, 3.4rem);
+  --sc-title:   clamp(1.25rem, 1rem + 1.1vw, 1.6rem);
+  --sc-body:    clamp(1rem, 0.96rem + 0.25vw, 1.0625rem);
+  --sc-small:   0.8125rem;
+  --sc-caption: 0.6875rem;
+
+  /* Ritmo de espaciado intencional (no padding uniforme) */
+  --sc-gap-hairline: 0.5rem;
+  --sc-gap-tight:    0.875rem;
+  --sc-gap:          1.15rem;
+  --sc-gap-wide:     1.6rem;
+  --sc-gap-section:  clamp(1.5rem, 1rem + 2vw, 2.5rem);
+
+  --sc-measure:      720px;   /* ancho de lectura editorial */
+
+  --sc-radius:       16px;
+  --sc-radius-lg:    22px;
+  --sc-radius-sm:    11px;
+
+  --sc-dur:          280ms;
+  --sc-dur-fast:     150ms;
+  --sc-ease:         cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   2 · RESET DE DEUDA VISUAL HEREDADA
+   Neutraliza los .cortex-* / blobs / grano / shimmer de liquid.css.
+   No se borran las clases en liquid.css — aquí se sobrescriben limpio.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Fondo: fuera blobs morado/verde a la deriva, fuera grano */
+.cortex-stage .cortex-bg,
+.cortex-stage .cortex-grain {
+  display: none !important;
+}
+/* Astronauta backdrop (astronaut.css) — fuera en SuperStage sobrio */
+.cortex-stage .astro-stage { display: none !important; }
+
+.cortex-stage {
+  position: relative;
+  height: 100%;          /* lock a la altura del .app (no min-height) → activa scroll interno */
+  max-height: 100%;
+  padding: 0 !important;
+  background:
+    radial-gradient(120% 90% at 50% -10%, color-mix(in srgb, var(--sc-accent) 6%, transparent), transparent 55%),
+    var(--sc-bg) !important;
+  animation: none !important;
+  overflow-y: auto;
+}
+
+/* Mata el grid fantasma "swarm form" → mono-columna real.
+   Selector doblado (.cortex-stage .cortex-inner.cortex-inner) para superar la
+   especificidad de los overrides !important tardíos de liquid.css (~4957). */
+.cortex-stage .cortex-inner,
+.cortex-stage .cortex-inner.cortex-inner {
+  display: block !important;
+  grid-template-areas: none !important;
+  grid-template-columns: none !important;
+  max-width: none !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   3 · LAYOUT EDITORIAL MONO-COLUMNA
+   ════════════════════════════════════════════════════════════════════════ */
+.sc-shell {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  justify-content: center;
+  padding: clamp(1.5rem, 1rem + 2vw, 2.5rem) clamp(1.25rem, 0.5rem + 3vw, 3rem) var(--sc-gap-section);
+}
+
+.sc-column {
+  width: 100%;
+  max-width: var(--sc-measure);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Hero ─────────────────────────────────────────────────────────────── */
+.sc-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: var(--sc-gap-wide);
+}
+
+.sc-kicker {
+  font-family: var(--sc-mono) !important;
+  font-size: var(--sc-caption);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--sc-ink-3);
+  margin-bottom: var(--sc-gap);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+}
+.sc-kicker::before,
+.sc-kicker::after {
+  content: "";
+  width: 1.75rem;
+  height: 1px;
+  background: var(--sc-line-strong);
+}
+
+/* serif con !important: cliender-brand.css fuerza Manrope en html/body */
+.cortex-stage .sc-display,
+.sc-display {
+  font-family: var(--sc-serif) !important;
+  font-weight: 500;
+  font-size: var(--sc-display);
+  line-height: 0.98;
+  letter-spacing: -0.018em;
+  color: var(--sc-ink);
+  margin: 0;
+}
+.sc-display em {
+  font-style: italic;
+  font-weight: 500;
+  /* Acento como matiz tipográfico, no como neón */
+  color: var(--sc-accent);
+}
+
+.sc-subcopy {
+  font-family: var(--sc-sans) !important;
+  font-size: var(--sc-body);
+  line-height: 1.55;
+  color: var(--sc-ink-2);
+  max-width: 34ch;
+  margin: var(--sc-gap) 0 0;
+  letter-spacing: -0.005em;
+}
+.sc-subcopy i { font-style: italic; color: var(--sc-ink); }
+
+/* Filete divisorio editorial */
+.sc-rule {
+  width: 100%;
+  height: 1px;
+  background: var(--sc-line);
+  margin: var(--sc-gap-wide) 0;
+  border: 0;
+}
+
+/* ─── Bloque de sección con etiqueta editorial al margen ────────────────── */
+.sc-block { margin-bottom: var(--sc-gap-wide); }
+.sc-block:last-child { margin-bottom: 0; }
+
+/* ─── Selector de modo de salida (pieza única / vídeo storyboard) ───────── */
+.sc-mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+.sc-mode-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--sc-radius-sm);
+  border: 1px solid var(--sc-line);
+  background: transparent;
+  cursor: pointer;
+  transition: border-color var(--sc-dur-fast) var(--sc-ease),
+              background var(--sc-dur-fast) var(--sc-ease);
+}
+.sc-mode-btn:hover { border-color: var(--sc-ink-3); }
+.sc-mode-btn.is-active {
+  border-color: var(--sc-accent);
+  background: color-mix(in srgb, var(--sc-accent) 8%, transparent);
+}
+.sc-mode-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.sc-mode-title {
+  font-family: var(--sc-sans) !important;
+  font-size: var(--sc-small);
+  font-weight: 600;
+  color: var(--sc-ink);
+}
+.sc-mode-sub {
+  font-family: var(--sc-mono) !important;
+  font-size: var(--sc-caption);
+  letter-spacing: 0.04em;
+  color: var(--sc-ink-3);
+}
+
+/* ─── Control de duración (modo vídeo) ──────────────────────────────────── */
+.sc-duration {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.7rem;
+  flex-wrap: wrap;
+}
+.sc-duration-k {
+  font-family: var(--sc-mono) !important;
+  font-size: var(--sc-caption);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--sc-ink-3);
+}
+.sc-duration input[type="range"] { flex: 1; min-width: 120px; accent-color: var(--sc-accent); }
+.sc-duration-v {
+  font-family: var(--sc-mono) !important;
+  font-size: var(--sc-small);
+  font-weight: 600;
+  color: var(--sc-accent);
+  min-width: 2.5em;
+}
+.sc-duration-hint {
+  flex-basis: 100%;
+  font-family: var(--sc-sans) !important;
+  font-size: var(--sc-caption);
+  color: var(--sc-ink-3);
+}
+
+.sc-label {
+  font-family: var(--sc-mono) !important;
+  font-size: var(--sc-caption);
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--sc-ink-3);
+  margin-bottom: var(--sc-gap-tight);
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+.sc-label .sc-label-aside {
+  margin-left: auto;
+  color: var(--sc-ink-4);
+  letter-spacing: 0.12em;
+  text-transform: none;
+}
+
+/* ─── Contexto (cliente / moodboard) read-only ──────────────────────────── */
+.sc-context {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-gap);
+  flex-wrap: wrap;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--sc-line);
+  border-bottom: 1px solid var(--sc-line);
+}
+.sc-ctx-item { display: flex; align-items: baseline; gap: 0.5rem; }
+.sc-ctx-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  align-self: center;
+  background: var(--sc-ink-4);
+}
+.sc-ctx-k {
+  font-family: var(--sc-mono) !important;
+  font-size: var(--sc-caption);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--sc-ink-3);
+}
+.sc-ctx-v {
+  font-family: var(--sc-sans) !important;
+  font-size: var(--sc-small);
+  color: var(--sc-ink);
+  font-weight: 500;
+}
+.sc-ctx-sep { width: 1px; height: 1.1rem; background: var(--sc-line-strong); align-self: center; }
+.sc-ctx-hint {
+  font-family: var(--sc-mono) !important;
+  font-size: var(--sc-caption);
+  color: var(--sc-ink-4);
+  margin-left: auto;
+  letter-spacing: 0.1em;
+}
+
+/* ─── Referencias visuales ──────────────────────────────────────────────── */
+.sc-refs { display: flex; align-items: center; gap: var(--sc-gap-tight); flex-wrap: wrap; }
+.sc-ref-thumb {
+  position: relative;
+  width: 64px; height: 64px;
+  border-radius: var(--sc-radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--sc-line-strong);
+  box-shadow: var(--sc-shadow-soft);
+}
+.sc-ref-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sc-ref-remove {
+  position: absolute; top: 4px; right: 4px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: color-mix(in srgb, var(--sc-bg) 78%, transparent);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--sc-line-strong);
+  color: var(--sc-ink); font-size: 11px; line-height: 1; cursor: pointer;
+  display: grid; place-items: center; padding: 0;
+  transition: background var(--sc-dur-fast) var(--sc-ease), transform var(--sc-dur-fast) var(--sc-ease);
+}
+.sc-ref-remove:hover { background: var(--sc-err); color: #fff; transform: scale(1.08); }
+
+.sc-ref-add {
+  width: 64px; height: 64px; border-radius: var(--sc-radius-sm);
+  border: 1px dashed var(--sc-line-strong);
+  display: grid; place-items: center; cursor: pointer;
+  color: var(--sc-ink-3); font-size: 22px; line-height: 1;
+  background: var(--sc-surface-2);
+  transition: border-color var(--sc-dur) var(--sc-ease), color var(--sc-dur) var(--sc-ease), background var(--sc-dur) var(--sc-ease);
+}
+.sc-ref-add:hover { border-color: var(--sc-accent-line); color: var(--sc-accent); background: var(--sc-accent-tint); }
+.sc-ref-count {
+  font-family: var(--sc-mono) !important;
+  font-size: var(--sc-caption);
+  color: var(--sc-ink-4);
+  margin-left: auto;
+  letter-spacing: 0.1em;
+}
+
+/* ─── ADN visual extraído (refAnalysis) ─────────────────────────────────── */
+.sc-dna {
+  margin-top: var(--sc-gap-tight);
+  padding: var(--sc-gap-tight);
+  border-radius: var(--sc-radius);
+  background: var(--sc-surface-2);
+  border: 1px solid var(--sc-line);
+  font-family: var(--sc-sans) !important;
+}
+.sc-dna-row { display: flex; align-items: center; gap: 0.75rem; font-size: var(--sc-small); color: var(--sc-ink-2); }
+.sc-dna-row + .sc-dna-row { margin-top: 0.5rem; }
+.sc-dna-k {
+  font-family: var(--sc-mono) !important;
+  font-size: var(--sc-caption); letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--sc-ink-3); min-width: 56px;
+}
+.sc-dna-swatch { width: 18px; height: 18px; border-radius: 5px; border: 1px solid var(--sc-line-strong); }
+.sc-dna-chip {
+  font-size: var(--sc-caption); padding: 2px 8px; border-radius: 999px;
+  background: var(--sc-accent-tint); color: var(--sc-accent); border: 1px solid var(--sc-accent-line);
+}
+.sc-dna-ok { color: var(--sc-ok); }
+.sc-spin {
+  width: 13px; height: 13px; border-radius: 50%;
+  border: 1.5px solid var(--sc-line-strong); border-top-color: var(--sc-accent);
+  animation: sc-spin 0.7s linear infinite;
+}
+@keyframes sc-spin { to { transform: rotate(360deg); } }
+
+/* ─── Brief (textarea) ──────────────────────────────────────────────────── */
+.sc-brief {
+  border-radius: var(--sc-radius-lg);
+  background: var(--sc-surface);
+  border: 1px solid var(--sc-line-strong);
+  box-shadow: var(--sc-shadow-soft);
+  transition: border-color var(--sc-dur) var(--sc-ease), box-shadow var(--sc-dur) var(--sc-ease);
+  overflow: hidden;
+}
+.sc-brief:focus-within {
+  border-color: var(--sc-accent-line);
+  box-shadow: var(--sc-shadow-lift);
+}
+.sc-brief textarea {
+  width: 100%; box-sizing: border-box; resize: none;
+  background: transparent; border: 0; outline: 0;
+  font-family: var(--sc-sans) !important;
+  font-size: var(--sc-body); line-height: 1.55; color: var(--sc-ink);
+  padding: var(--sc-gap) var(--sc-gap) var(--sc-gap-tight);
+  letter-spacing: -0.005em;
+}
+.sc-brief textarea::placeholder { color: var(--sc-ink-4); }
+.sc-brief-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--sc-gap-tight) var(--sc-gap) var(--sc-gap-tight);
+  border-top: 1px solid var(--sc-line);
+}
+.sc-brief-hint {
+  font-family: var(--sc-mono) !important;
+  font-size: var(--sc-caption); color: var(--sc-ink-4); letter-spacing: 0.1em;
+}
+
+/* ─── Botón launch — sólido, confiado, sin gradiente arcoíris ───────────── */
+.sc-launch {
+  display: inline-flex; align-items: center; gap: 0.55rem;
+  font-family: var(--sc-sans) !important;
+  font-size: var(--sc-small); font-weight: 600; letter-spacing: -0.005em;
+  color: var(--sc-btn-ink);
+  background: var(--sc-btn-bg);
+  border: 0; border-radius: 999px; cursor: pointer;
+  padding: 0.7rem 1.4rem;
+  box-shadow: var(--sc-shadow-soft);
+  transition: transform var(--sc-dur-fast) var(--sc-ease), box-shadow var(--sc-dur) var(--sc-ease), opacity var(--sc-dur) var(--sc-ease), background var(--sc-dur) var(--sc-ease);
+}
+.sc-launch:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--sc-shadow-lift); }
+.sc-launch:active:not(:disabled) { transform: translateY(0); }
+.sc-launch:focus-visible { outline: 2px solid var(--sc-accent); outline-offset: 3px; }
+.sc-launch:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   5 · LÍNEA DE PROGRESO EDITORIAL + RESULTADO PROTAGONISTA
+   Reemplaza la presentación del modal .swarm-modal-* (lógica intacta).
+   ════════════════════════════════════════════════════════════════════════ */
+.cortex-stage .swarm-modal-backdrop {
+  position: fixed; inset: 0; z-index: 1200;
+  display: grid; place-items: center;
+  padding: clamp(1rem, 0.5rem + 2vw, 2.5rem);
+  background: color-mix(in srgb, var(--sc-bg) 72%, transparent) !important;
+  backdrop-filter: blur(14px) saturate(120%);
+  animation: sc-fade var(--sc-dur) var(--sc-ease);
+}
+@keyframes sc-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sc-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+.cortex-stage .swarm-modal-card {
+  width: min(760px, 100%);
+  max-height: 88vh; overflow-y: auto;
+  background: var(--sc-bg-raise) !important;
+  border: 1px solid var(--sc-line-strong) !important;
+  border-radius: var(--sc-radius-lg) !important;
+  box-shadow: var(--sc-shadow-lift) !important;
+  padding: var(--sc-gap-wide) !important;
+  animation: sc-rise var(--sc-dur) var(--sc-ease);
+}
+
+.cortex-stage .swarm-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--sc-gap);
+  padding-bottom: var(--sc-gap-tight);
+  border-bottom: 1px solid var(--sc-line) !important;
+}
+.cortex-stage .swarm-modal-title-wrap { display: flex; align-items: center; gap: 0.6rem; }
+.cortex-stage .swarm-modal-pulse {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--sc-accent) !important;
+  box-shadow: none !important;
+  animation: sc-breath 2.2s ease-in-out infinite;
+}
+@keyframes sc-breath { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
+.cortex-stage .swarm-modal-title {
+  font-family: var(--sc-mono) !important;
+  font-size: var(--sc-caption) !important; letter-spacing: 0.28em !important; text-transform: uppercase;
+  color: var(--sc-ink-2) !important;
+}
+.cortex-stage .swarm-modal-close {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: transparent !important; border: 1px solid var(--sc-line-strong) !important;
+  color: var(--sc-ink-3) !important; font-size: 15px; cursor: pointer;
+  display: grid; place-items: center;
+  transition: color var(--sc-dur-fast) var(--sc-ease), border-color var(--sc-dur-fast) var(--sc-ease);
+}
+.cortex-stage .swarm-modal-close:hover { color: var(--sc-ink) !important; border-color: var(--sc-ink-3) !important; }
+
+.cortex-stage .swarm-modal-section { margin-bottom: var(--sc-gap); }
+.cortex-stage .swarm-modal-section:last-child { margin-bottom: 0; }
+.cortex-stage .swarm-modal-label {
+  font-family: var(--sc-mono) !important;
+  font-size: var(--sc-caption) !important; letter-spacing: 0.26em !important; text-transform: uppercase;
+  color: var(--sc-ink-3) !important; margin-bottom: var(--sc-gap-tight) !important;
+}
+.cortex-stage .swarm-modal-prompt {
+  font-family: var(--sc-serif) !important;
+  font-style: italic; font-size: var(--sc-title) !important; line-height: 1.4;
+  color: var(--sc-ink) !important;
+}
+
+/* Estaciones tipográficas en línea horizontal */
+.cortex-stage .swarm-progress-wrap { display: flex; flex-direction: column; gap: var(--sc-gap-tight); }
+.cortex-stage .swarm-bar-track {
+  height: 1px !important; width: 100%;
+  background: var(--sc-line-strong) !important; border-radius: 0 !important;
+  overflow: visible !important;
+}
+.cortex-stage .swarm-bar-fill {
+  height: 1px !important;
+  background: var(--sc-accent) !important;
+  box-shadow: none !important;
+  transition: width 600ms var(--sc-ease) !important;
+}
+.cortex-stage .swarm-agent-badges {
+  display: flex !important; justify-content: space-between; gap: var(--sc-gap-hairline);
+}
+.cortex-stage .swarm-badge {
+  flex: 1;
+  display: flex !important; flex-direction: column; align-items: center; gap: 0.4rem;
+  background: transparent !important; border: 0 !important; padding: 0 !important;
+}
+.cortex-stage .swarm-badge-label {
+  font-family: var(--sc-mono) !important;
+  font-size: var(--sc-caption) !important; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--sc-ink-4) !important;
+  transition: color var(--sc-dur) var(--sc-ease);
+}
+.cortex-stage .swarm-badge--running .swarm-badge-label { color: var(--sc-accent) !important; }
+.cortex-stage .swarm-badge--done .swarm-badge-label { color: var(--sc-ink-2) !important; }
+.cortex-stage .swarm-badge--error .swarm-badge-label,
+.cortex-stage .swarm-badge--rejected .swarm-badge-label { color: var(--sc-err) !important; }
+.cortex-stage .swarm-badge-check { color: var(--sc-ok) !important; font-size: 11px; }
+.cortex-stage .swarm-badge-x { color: var(--sc-err) !important; font-size: 11px; }
+.cortex-stage .swarm-badge-spin {
+  width: 11px; height: 11px; border-radius: 50%;
+  border: 1.5px solid var(--sc-line-strong); border-top-color: var(--sc-accent);
+  animation: sc-spin 0.7s linear infinite;
+}
+
+/* Log vivo discreto */
+.cortex-stage .swarm-modal-logs {
+  background: var(--sc-surface) !important;
+  border: 1px solid var(--sc-line) !important;
+  border-radius: var(--sc-radius) !important;
+  padding: var(--sc-gap-tight) !important;
+  max-height: 160px;
+}
+.cortex-stage .swarm-log-row { font-family: var(--sc-mono) !important; font-size: var(--sc-caption) !important; }
+.cortex-stage .swarm-log-dot { box-shadow: none !important; }
+.cortex-stage .swarm-log-msg { color: var(--sc-ink-2) !important; }
+
+/* Resultado protagonista */
+.cortex-stage .swarm-result {
+  display: flex; flex-direction: column; gap: var(--sc-gap-tight);
+}
+.cortex-stage .swarm-result-media {
+  width: 100% !important; max-height: 56vh; object-fit: contain;
+  border-radius: var(--sc-radius) !important;
+  border: 1px solid var(--sc-line-strong) !important;
+  box-shadow: var(--sc-shadow-lift) !important;
+  background: var(--sc-surface) !important;
+}
+.cortex-stage .swarm-result-meta {
+  font-family: var(--sc-mono) !important; font-size: var(--sc-caption) !important;
+  color: var(--sc-ink-3) !important;
+}
+.cortex-stage .swarm-modal-download {
+  color: var(--sc-accent) !important; text-decoration: none;
+  border-bottom: 1px solid var(--sc-accent-line);
+}
+.cortex-stage .swarm-modal-download:hover { border-bottom-color: var(--sc-accent); }
+
+/* Loader de síntesis sobrio (oculta el orbe tech viejo) */
+.cortex-stage .swarm-tech-loader::before,
+.cortex-stage .swarm-tech-loader::after { display: none !important; }
+.cortex-stage .swarm-tech-loader {
+  background: var(--sc-surface) !important;
+  border: 1px solid var(--sc-line) !important;
+  border-radius: var(--sc-radius) !important;
+  padding: var(--sc-gap-wide) !important;
+}
+.cortex-stage .swarm-tech-loader-label {
+  font-family: var(--sc-mono) !important; font-size: var(--sc-caption) !important;
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--sc-ink-3) !important;
+}
+.cortex-stage .swarm-tech-loader-orb {
+  background: var(--sc-accent) !important; box-shadow: none !important;
+  opacity: 0.6;
+}
+
+/* FAB reabrir — discreto */
+.cortex-stage .swarm-reopen-fab {
+  position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 1100;
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  font-family: var(--sc-mono) !important; font-size: var(--sc-caption) !important;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--sc-ink) !important;
+  background: var(--sc-bg-raise) !important;
+  border: 1px solid var(--sc-line-strong) !important;
+  border-radius: 999px; padding: 0.55rem 1rem; cursor: pointer;
+  box-shadow: var(--sc-shadow-soft) !important;
+  transition: transform var(--sc-dur-fast) var(--sc-ease);
+}
+.cortex-stage .swarm-reopen-fab:hover { transform: translateY(-1px); }
+
+/* ─── Responsive 768 ────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .sc-context { gap: var(--sc-gap-tight); }
+  .sc-ctx-hint { display: none; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   6 · REDUCED MOTION
+   ════════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .cortex-stage,
+  .cortex-stage .swarm-modal-backdrop,
+  .cortex-stage .swarm-modal-card,
+  .cortex-stage .swarm-modal-pulse,
+  .sc-spin,
+  .cortex-stage .swarm-badge-spin,
+  .cortex-stage .swarm-bar-fill { animation: none !important; transition: none !important; }
+}
+html[data-motion="off"] .cortex-stage *,
+html[data-motion="off"] .cortex-stage *::before,
+html[data-motion="off"] .cortex-stage *::after { animation: none !important; }

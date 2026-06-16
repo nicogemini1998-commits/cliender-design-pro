@@ -1,0 +1,15 @@
+import React from 'react'
+import { createRoot } from 'react-dom/client'
+import App from './app.jsx'
+import './styles.css'
+import './ui.css'
+import './leftmenu.css'
+import './nodes-v2.css'
+import './vault.css'
+import './liquid.css'
+import './motion.css'
+import './analytics.css'
+import './astronaut.css'
+import './cliender-brand.css'
+
+createRoot(document.getElementById('root')).render(<App />)

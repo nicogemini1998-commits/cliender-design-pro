@@ -1,0 +1,132 @@
+/* ════════════════════════════════════════════════════════════════════════
+   Cliender Brand Tokens — Paleta Oficial 2023 (Teresa Redón Studio)
+   ----------------------------------------------------------------------
+   Hoja que se CARGA AL FINAL: sus variables sobreescriben las del
+   prototipo original sin tocar el resto del CSS. Reversible al instante
+   eliminando esta etiqueta <link>.
+   ════════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Inconsolata:wght@400;500;600;700&display=swap');
+
+:root,
+html,
+html[data-theme="dark"],
+html[data-theme="light"] {
+  /* ─── Paleta oficial Cliender ────────────────────────────────────── */
+  --cdp-purple:        #8F7EE9;   /* color principal de marca */
+  --cdp-purple-svg:    #927EEC;   /* valor exacto en SVGs producción */
+  --cdp-purple-soft:   #B4A7F0;
+  --cdp-purple-deep:   #6F5BD9;
+  --cdp-navy:          #1E2839;
+  --cdp-black:         #14181E;
+  --cdp-cream:         #EBEAE4;
+  --cdp-white:         #FFFFFF;
+
+  /* ─── Sobreescribe tokens del prototipo (cascade wins) ──────────── */
+  --accent:   var(--cdp-purple);
+  --accent-2: var(--cdp-purple-soft);
+}
+
+/* Tipografía oficial: Manrope (display + text) + Inconsolata (mono) */
+html,
+body,
+.brand-name,
+.cortex-title,
+.login-h1,
+.login-card-title,
+.super-title,
+button,
+input,
+textarea {
+  font-family: "Manrope", -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif !important;
+  letter-spacing: -0.012em;
+}
+
+.mono,
+.login-eyebrow,
+.login-field-label,
+.login-foot,
+.cortex-kicker,
+.super-kicker,
+[class*="mono"] {
+  font-family: "Inconsolata", "JetBrains Mono", ui-monospace, "SF Mono", monospace !important;
+}
+
+/* ─── Brand mark del topbar usa logo SVG real Cliender Purple ─────── */
+.brand-mark {
+  background: transparent !important;
+  background-image: url("./assets/logos/Logo1Purple.svg?v=2") !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  width: 116px !important;
+  height: 36px !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+.brand-mark::after  { content: none !important; display: none !important; }
+.brand-mark::before { content: none !important; display: none !important; }
+
+/* Texto "Cliender<sup>design</sup>" del topbar se oculta porque el logo
+   ya lleva el wordmark — evita doble marca */
+.brand .brand-name { display: none !important; }
+.brand > div:last-child { display: none !important; }
+
+/* ─── Login.html: brand-mark del hero usa Logo Cliender Purple ───── */
+.login-brand-mark {
+  background: transparent !important;
+  background-image: url("./assets/logos/Logo1Purple.svg?v=2") !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  width: 116px !important;
+  height: 36px !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+.login-brand-mark::after { content: none !important; display: none !important; }
+.login-brand-name { display: none !important; }
+.login-brand > div:last-child { display: none !important; }
+
+/* ─── Botón Login y CTA primarios respetan purple oficial ────────── */
+.login-btn {
+  background: linear-gradient(110deg, var(--cdp-purple), var(--cdp-purple-deep)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.30),
+    inset 0 0 0 1px rgba(255,255,255,0.14),
+    0 12px 28px -6px color-mix(in srgb, var(--cdp-purple) 55%, transparent) !important;
+}
+.login-btn:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    0 18px 36px -6px color-mix(in srgb, var(--cdp-purple) 70%, transparent) !important;
+}
+
+/* ─── Footer legal oficial ───────────────────────────────────────── */
+.login-foot {
+  font-size: 9.5px !important;
+}
+.login-foot::before {
+  content: "";
+  display: none;
+}
+
+/* ─── Astronauta: backdrop del stage ────────────────────────── */
+.cortex-stage { position: relative; }
+.cortex-inner,
+.cortex-swarm { position: relative; z-index: 1; }
+
+.astro-stage {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0.50;
+  transition: opacity 0.8s ease;
+}
+.astro-stage.is-active { opacity: 0.72; }

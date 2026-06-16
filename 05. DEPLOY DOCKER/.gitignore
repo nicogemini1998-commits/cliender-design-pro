@@ -1,0 +1,10 @@
+# Secretos — NUNCA a git ni a OneDrive con valores reales
+.env
+.env.local
+.env.*.local
+
+# Permitir plantilla pública
+!.env.example
+
+# Logs
+*.log

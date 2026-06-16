@@ -1,0 +1,370 @@
+/* ===========================================================================
+   UI infrastructure — Dock, Gallery, Toasts
+   =========================================================================== */
+
+/* --- Notifications --------------------------------------------------------- */
+.toast-stack {
+  position: fixed;
+  top: 76px; right: 20px;
+  z-index: 200;
+  display: flex; flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  max-width: 340px;
+}
+/* Cuando la Galería está abierta, mueve los toasts a la izquierda del panel */
+body:has(.gallery-panel.is-open) .toast-stack { right: 740px; }
+/* Cuando Style Vault está abierto (bottom sheet), igual */
+body:has(.vault-sheet.is-open) .toast-stack { top: 76px; }
+.toast {
+  pointer-events: auto;
+  display: flex; align-items: flex-start; gap: 11px;
+  position: relative;
+  padding: 12px 36px 12px 13px;
+  border: 1px solid;
+  border-radius: 10px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 14px 30px -10px rgba(0,0,0,0.6);
+  animation: toast-in .35s var(--ease);
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(20px) scale(.96); }
+  to   { opacity: 1; transform: translateX(0)    scale(1); }
+}
+.toast-bar {
+  position: absolute;
+  left: 0; top: 8px; bottom: 8px;
+  width: 2px;
+  background: var(--toast-c);
+  box-shadow: 0 0 8px var(--toast-c);
+  border-radius: 2px;
+}
+.toast-icon {
+  display: grid; place-items: center;
+  width: 24px; height: 24px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--toast-c) 18%, transparent);
+  color: var(--toast-c);
+  font-size: 13px;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--toast-c) 40%, transparent);
+}
+.toast-body { min-width: 0; flex: 1; }
+.toast-title { font-size: 12.5px; color: var(--text-1); font-weight: 500; line-height: 1.3; }
+.toast-text  { margin-top: 2px; font-size: 11.5px; color: var(--text-2); line-height: 1.5; }
+.toast-close {
+  position: absolute; top: 8px; right: 8px;
+  border: 0; background: transparent;
+  color: var(--text-4);
+  width: 20px; height: 20px;
+  border-radius: 5px; cursor: pointer;
+}
+.toast-close:hover { color: var(--text-1); background: rgba(255,255,255,0.04); }
+
+/* --- Node Dock ------------------------------------------------------------- */
+.dock {
+  position: fixed;
+  left: 50%; bottom: 22px;
+  transform: translateX(-50%);
+  z-index: 24;
+  padding: 8px 8px 7px;
+  background: rgba(15,15,15,0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid #262626;
+  border-radius: 16px;
+  box-shadow:
+    0 22px 50px -18px rgba(0,0,0,0.85),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+  display: flex; flex-direction: column;
+  gap: 6px;
+  min-width: 580px;
+}
+.dock-kicker {
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-4);
+  padding: 0 6px;
+}
+.dock-items {
+  display: flex; gap: 6px;
+}
+.dock-item {
+  flex: 1;
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid #1F1F1F;
+  background: #0A0A0A;
+  border-radius: 11px;
+  color: var(--text-1);
+  cursor: pointer;
+  transition: all .2s var(--ease);
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+}
+.dock-item::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--dock-c) 18%, transparent), transparent 55%);
+  opacity: 0;
+  transition: opacity .25s;
+}
+.dock-item:hover { border-color: var(--dock-c); transform: translateY(-2px); box-shadow: 0 10px 24px -10px rgba(0,0,0,0.7), 0 0 22px color-mix(in srgb, var(--dock-c) 30%, transparent); }
+.dock-item:hover::before { opacity: 1; }
+.dock-item.is-prompt { --dock-c: #6366F1; }
+.dock-item.is-image  { --dock-c: #8B5CF6; }
+.dock-item.is-video  { --dock-c: #10B981; }
+.dock-item.is-note   { --dock-c: #F59E0B; }
+.dock-item-icon {
+  display: grid; place-items: center;
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  position: relative; z-index: 1;
+}
+.dock-item-meta { min-width: 0; position: relative; z-index: 1; }
+.dock-item-label {
+  font-size: 12.5px; font-weight: 500; color: var(--text-1);
+  letter-spacing: -0.005em;
+}
+.dock-item-hint {
+  margin-top: 2px;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+.dock-item-plus {
+  margin-left: auto;
+  display: grid; place-items: center;
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--dock-c) 18%, transparent);
+  color: var(--dock-c);
+  font-size: 14px;
+  position: relative; z-index: 1;
+}
+
+/* --- Gallery Panel --------------------------------------------------------- */
+.gallery-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-2);
+  padding: 6px 11px;
+  border-radius: 7px;
+  font: 500 11.5px/1 "Geist", sans-serif;
+  cursor: pointer;
+  transition: all .15s var(--ease);
+}
+.gallery-btn:hover { color: var(--text-1); border-color: rgba(139,92,246,0.55); }
+.gallery-btn-count {
+  font-size: 9.5px;
+  background: rgba(139,92,246,0.15);
+  border: 1px solid rgba(139,92,246,0.35);
+  color: var(--accent-3);
+  border-radius: 4px;
+  padding: 2px 5px;
+}
+
+.gallery-backdrop {
+  position: fixed; inset: 0; z-index: 35;
+  background: rgba(0,0,0,0.55);
+  animation: backdrop-in .2s ease;
+}
+.gallery-panel {
+  position: fixed; right: 0; top: 0; bottom: 0;
+  z-index: 38;
+  width: 720px;
+  max-width: calc(100vw - 60px);
+  background: rgba(10,10,10,0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-left: 1px solid var(--line);
+  box-shadow: 0 0 80px rgba(139,92,246,0.10);
+  display: flex; flex-direction: column;
+  transform: translate3d(100%, 0, 0);
+  will-change: transform;
+  transition: transform .42s var(--ease);
+}
+.gallery-panel.is-open { transform: translate3d(0, 0, 0); }
+
+.gallery-head {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line-2);
+}
+.gallery-title { font-size: 15px; font-weight: 500; color: var(--text-1); }
+.gallery-kicker {
+  margin-top: 3px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.gallery-filters {
+  display: inline-flex; gap: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 3px;
+}
+.gallery-filter {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 6px 11px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.gallery-filter:hover { color: var(--text-1); }
+.gallery-filter.is-active {
+  background: rgba(139,92,246,0.12);
+  color: var(--accent-3);
+  box-shadow: inset 0 0 0 1px rgba(139,92,246,0.4);
+}
+.filter-count {
+  font-size: 9.5px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.gallery-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+.gallery-empty {
+  display: grid; place-items: center;
+  height: 100%;
+  text-align: center;
+}
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.gallery-card {
+  position: relative;
+  display: flex; flex-direction: column;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+  transition: all .2s var(--ease);
+  animation: thumb-in .4s var(--ease);
+}
+.gallery-card:hover {
+  border-color: rgba(139,92,246,0.55);
+  transform: translateY(-3px);
+  box-shadow: 0 14px 28px -10px rgba(0,0,0,0.65), 0 0 22px rgba(139,92,246,0.18);
+}
+.gallery-thumb {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  background-size: cover;
+  background-position: center;
+  background-color: #161616;
+}
+.gallery-video-tag,
+.gallery-style-tag {
+  position: absolute;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  backdrop-filter: blur(8px);
+}
+.gallery-video-tag {
+  left: 8px; bottom: 8px;
+  background: rgba(0,0,0,0.5);
+  color: var(--text-1);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+.gallery-style-tag {
+  right: 8px; top: 8px;
+  background: rgba(16,185,129,0.15);
+  border: 1px solid rgba(16,185,129,0.45);
+  color: #6EE7B7;
+}
+.gallery-meta { padding: 9px 11px; }
+.gallery-meta-prompt {
+  font-size: 11.5px;
+  color: var(--text-1);
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 33px;
+}
+.gallery-meta-row {
+  margin-top: 6px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.gallery-model {
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  background: rgba(139,92,246,0.12);
+  border: 1px solid rgba(139,92,246,0.32);
+  color: var(--accent-3);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.gallery-time {
+  font-size: 9.5px;
+  color: var(--text-4);
+  letter-spacing: 0.08em;
+}
+.gallery-remove {
+  position: absolute; top: 8px; left: 8px;
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-1);
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s, background .15s;
+  backdrop-filter: blur(6px);
+}
+.gallery-card:hover .gallery-remove { opacity: 1; }
+.gallery-remove:hover { background: rgba(239,68,68,0.45); }
+
+/* --- Connector temp edge (drag) ------------------------------------------- */
+.temp-edge {
+  stroke: var(--accent);
+  stroke-width: 2;
+  fill: none;
+  stroke-dasharray: 6 6;
+  animation: edge-dash 1s linear infinite;
+  filter: url(#edgeGlow);
+}
+
+/* Highlight handles when a drag is in progress */
+.is-connecting .nh {
+  animation: handle-pulse 1.2s ease-in-out infinite;
+}
+@keyframes handle-pulse {
+  0%, 100% { transform: translate(0, -50%) scale(1); }
+  50%      { transform: translate(0, -50%) scale(1.25); }
+}

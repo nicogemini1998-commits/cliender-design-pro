@@ -1,0 +1,385 @@
+/* ===========================================================================
+   MOTION SYSTEM — single source of truth
+   ---------------------------------------------------------------------------
+   Una sola animación para todos los paneles (apertura, cierre, cambio de
+   apartado) y un set unificado de feedback táctil (hover · focus · press).
+   Cargado AL FINAL para ganar las desempates de especificidad.
+   =========================================================================== */
+
+:root {
+  /* Duraciones — micro a macro */
+  --mo-snap:    110ms;   /* hover / focus / press feedback */
+  --mo-tap:     180ms;   /* checkbox toggle, segmented switch */
+  --mo-swap:    260ms;   /* in-panel content swap (fade) */
+  --mo-drawer:  360ms;   /* DRAWER apertura / cierre / cambio de apartado */
+  --mo-modal:   320ms;   /* popups · lightbox */
+  --mo-back:    240ms;   /* backdrop fade */
+
+  /* Curvas */
+  --mo-ease:        cubic-bezier(0.22, 1, 0.36, 1);   /* expo-out, suave */
+  --mo-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);   /* sheet/spring feel */
+  --mo-ease-press:  cubic-bezier(0.34, 1.56, 0.64, 1);/* leve overshoot al soltar */
+}
+
+/* Respetar la preferencia del sistema */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --mo-snap:    1ms;
+    --mo-tap:     1ms;
+    --mo-swap:    1ms;
+    --mo-drawer:  1ms;
+    --mo-modal:   1ms;
+    --mo-back:    1ms;
+  }
+}
+
+/* Cuando el usuario eligió "motion: off" en Ajustes */
+html[data-motion="off"] *,
+html[data-motion="off"] *::before,
+html[data-motion="off"] *::after {
+  animation-duration: 1ms !important;
+  transition-duration: 1ms !important;
+}
+
+/* ===========================================================================
+   DRAWERS — una sola animación para TODOS los paneles laterales
+   ---------------------------------------------------------------------------
+   Aplica a:
+     · .left-drawer  (Nodos · Clientes · Proyectos)
+     · .vault-sheet  (Moodboard)
+     · .gallery-panel (Galería)
+   =========================================================================== */
+
+.left-drawer,
+.vault-sheet,
+.gallery-panel {
+  /* Cancelamos los keyframes previos (drawer-slide-in) para evitar doble
+     animación al abrir; con transition basta para entrar Y salir. */
+  animation: none !important;
+
+  transform: translate3d(-104%, 0, 0);
+  opacity: 0;
+  visibility: hidden;
+  will-change: transform, opacity;
+
+  transition:
+    transform   var(--mo-drawer) var(--mo-ease-drawer),
+    opacity     var(--mo-drawer) var(--mo-ease),
+    visibility  0s linear        var(--mo-drawer);
+}
+
+.left-drawer.is-open,
+.vault-sheet.is-open,
+.gallery-panel.is-open {
+  transform: translate3d(0, 0, 0);
+  opacity: 1;
+  visibility: visible;
+  /* visibility cambia ya */
+  transition:
+    transform   var(--mo-drawer) var(--mo-ease-drawer),
+    opacity     var(--mo-drawer) var(--mo-ease),
+    visibility  0s linear        0s;
+}
+
+/* Super-panel (lateral derecho del modo Supercomputer) — mismo ritmo,
+   misma curva, lado opuesto */
+.super-panel {
+  transform: translate3d(104%, 0, 0);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    transform   var(--mo-drawer) var(--mo-ease-drawer),
+    opacity     var(--mo-drawer) var(--mo-ease),
+    visibility  0s linear        var(--mo-drawer);
+}
+.super-panel.is-open {
+  transform: translate3d(0, 0, 0);
+  opacity: 1;
+  visibility: visible;
+  transition:
+    transform   var(--mo-drawer) var(--mo-ease-drawer),
+    opacity     var(--mo-drawer) var(--mo-ease),
+    visibility  0s linear        0s;
+}
+
+/* ===========================================================================
+   CAMBIO DE APARTADO — fade in suave del contenido al montar
+   ---------------------------------------------------------------------------
+   El drawer ya está deslizándose; el contenido emerge un instante después
+   para dar la sensación de "el panel se posa y revela su interior".
+   =========================================================================== */
+
+.left-drawer.is-open .drawer-head,
+.vault-sheet.is-open .vault-side,
+.vault-sheet.is-open .vault-main,
+.gallery-panel.is-open .gallery-head {
+  animation: mo-content-rise var(--mo-swap) var(--mo-ease) both;
+  animation-delay: 80ms;
+}
+.left-drawer.is-open .drawer-body,
+.gallery-panel.is-open .gallery-grid,
+.gallery-panel.is-open .gallery-empty {
+  animation: mo-content-rise var(--mo-swap) var(--mo-ease) both;
+  animation-delay: 140ms;
+}
+
+@keyframes mo-content-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===========================================================================
+   MODALES · POPUPS · LIGHTBOX — misma curva, escala uniforme
+   =========================================================================== */
+
+.form-popup,
+.picker-popup,
+.mb-preview {
+  animation: mo-modal-pop var(--mo-modal) var(--mo-ease-drawer) both !important;
+}
+.form-popup-backdrop,
+.picker-backdrop,
+.lightbox,
+.vault-backdrop,
+.gallery-backdrop {
+  animation: mo-backdrop-fade var(--mo-back) ease both !important;
+}
+
+@keyframes mo-modal-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+@keyframes mo-backdrop-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ===========================================================================
+   FEEDBACK TÁCTIL — el usuario "siente" cada clic
+   ---------------------------------------------------------------------------
+   Una capa global para que TODOS los elementos interactivos respondan al
+   active/press con un breve hundimiento, y un tono de hover suave. La curva
+   de retorno tiene un overshoot mínimo: se siente físico, no de software.
+   =========================================================================== */
+
+/* Press feedback global — solo en elementos clicables conocidos */
+.rail-item,
+.node-add-card,
+.tpl-card,
+.client-card,
+.project-card-main,
+.btn-ghost,
+.btn-primary,
+.btn-soft,
+.node-btn,
+.form-btn-primary,
+.form-btn-ghost,
+.vault-btn,
+.add-client-btn,
+.theme-seg-btn,
+.seg-btn,
+.settings-action,
+.client-back,
+.super-toggle,
+.super-close,
+.super-hint,
+.super-empty-hint,
+.picker-row,
+.brief-slot,
+.quiz-chip,
+.tpl-card,
+.client-ref,
+.moodboard-card,
+.accent-card,
+.gallery-card,
+.form-step,
+.hud-zoom button {
+  transition:
+    transform   var(--mo-snap) var(--mo-ease-press),
+    background  var(--mo-snap) var(--mo-ease),
+    border-color var(--mo-snap) var(--mo-ease),
+    box-shadow  var(--mo-tap)  var(--mo-ease),
+    color       var(--mo-snap) var(--mo-ease),
+    opacity     var(--mo-snap) var(--mo-ease);
+}
+
+.rail-item:active,
+.btn-ghost:active,
+.btn-primary:not(:disabled):active,
+.btn-soft:active,
+.node-btn:not(:disabled):active,
+.form-btn-primary:not(:disabled):active,
+.form-btn-ghost:active,
+.vault-btn:active,
+.add-client-btn:active,
+.theme-seg-btn:active,
+.seg-btn:active,
+.settings-action:active,
+.client-back:active,
+.super-toggle:active,
+.super-close:active,
+.super-hint:active,
+.picker-row:active,
+.quiz-chip:active,
+.client-ref:active,
+.accent-card:active,
+.form-step:active,
+.hud-zoom button:active {
+  transform: scale(0.96);
+  transition-duration: 60ms;
+}
+
+/* Cards "grandes" — hundimiento más sutil para no romper layout */
+.node-add-card:active,
+.tpl-card:active,
+.client-card:active,
+.project-card-main:active,
+.moodboard-card:active,
+.gallery-card:active,
+.brief-slot:active {
+  transform: translateY(0) scale(0.99);
+  transition-duration: 80ms;
+}
+
+/* ===========================================================================
+   RAIL — feedback más expresivo (es el eje principal de navegación)
+   =========================================================================== */
+
+.rail-item {
+  position: relative;
+}
+/* "Tinta" que aparece al pulsar — confirma el target del click */
+.rail-item::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 9px;
+  background: radial-gradient(closest-side, rgba(139,92,246,0.35), transparent 70%);
+  opacity: 0;
+  transform: scale(0.6);
+  pointer-events: none;
+  transition: opacity var(--mo-tap) var(--mo-ease),
+              transform var(--mo-tap) var(--mo-ease);
+}
+.rail-item:active::before {
+  opacity: 1;
+  transform: scale(1);
+  transition-duration: 60ms;
+}
+.rail-item.is-active::before {
+  opacity: 0;
+}
+
+/* Marcador lateral del item activo — entra con el mismo ritmo del drawer */
+.rail-item-marker {
+  animation: mo-marker-in var(--mo-drawer) var(--mo-ease-drawer) both;
+  transform-origin: left center;
+}
+@keyframes mo-marker-in {
+  from { transform: translateY(-50%) scaleY(0.2); opacity: 0; }
+  to   { transform: translateY(-50%) scaleY(1);   opacity: 1; }
+}
+
+/* Tooltip — pequeña espera antes de aparecer, no se cuela en cambios rápidos */
+.rail-item::after {
+  transition:
+    opacity var(--mo-snap) var(--mo-ease) 250ms,
+    transform var(--mo-snap) var(--mo-ease) 250ms;
+}
+.rail-item:hover::after {
+  transition-delay: 350ms;
+}
+/* Si el cursor sale, ocultar al instante */
+.rail-item:not(:hover)::after {
+  transition-delay: 0s;
+}
+
+/* ===========================================================================
+   FOCUS RING — accesibilidad consistente con el lenguaje violeta
+   =========================================================================== */
+
+.rail-item:focus-visible,
+.btn-ghost:focus-visible,
+.btn-primary:focus-visible,
+.btn-soft:focus-visible,
+.node-btn:focus-visible,
+.form-btn-primary:focus-visible,
+.form-btn-ghost:focus-visible,
+.vault-btn:focus-visible,
+.add-client-btn:focus-visible,
+.theme-seg-btn:focus-visible,
+.seg-btn:focus-visible,
+.settings-action:focus-visible,
+.client-card:focus-visible,
+.project-card-main:focus-visible,
+.node-add-card:focus-visible,
+.tpl-card:focus-visible,
+.moodboard-card:focus-visible,
+.gallery-card:focus-visible,
+.form-input:focus-visible,
+.form-input:focus {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(10,10,10,1),
+    0 0 0 4px rgba(139,92,246,0.55);
+}
+
+/* Inputs en formularios — focus sin caja de doble borde */
+.form-input:focus {
+  border-color: rgba(139,92,246,0.7);
+  box-shadow:
+    0 0 0 3px rgba(139,92,246,0.18);
+}
+
+/* ===========================================================================
+   HOVER LIFT — cards que insinúan ser interactivas sin gritar
+   =========================================================================== */
+
+.client-card,
+.project-card-main,
+.moodboard-card,
+.gallery-card,
+.node-add-card,
+.tpl-card,
+.brief-slot,
+.accent-card,
+.form-step {
+  will-change: transform;
+}
+.client-card:hover,
+.project-card-main:hover,
+.moodboard-card:hover,
+.gallery-card:hover,
+.brief-slot:hover,
+.accent-card:hover,
+.form-step:hover {
+  transform: translateY(-1px);
+}
+/* (node-add-card y tpl-card ya tienen su propio lift en leftmenu.css; no lo
+    pisamos para no romper su sombra de color.) */
+
+/* ===========================================================================
+   SWITCH-MODE — cambio Canvas ↔ Supercomputer con el mismo idioma
+   =========================================================================== */
+
+.mode-tab {
+  transition:
+    color var(--mo-snap) var(--mo-ease),
+    background var(--mo-snap) var(--mo-ease),
+    transform var(--mo-snap) var(--mo-ease-press);
+}
+.mode-tab:active { transform: scale(0.96); transition-duration: 60ms; }
+
+/* ===========================================================================
+   AL CERRAR — el contenido del drawer no se queda "muerto" en pantalla
+   ---------------------------------------------------------------------------
+   Como React desmonta los hijos cuando activeTab cambia, el drawer saliente
+   se queda vacío durante la animación. Pintamos un fondo plano que rima
+   con el resto del panel para que la salida se sienta limpia.
+   =========================================================================== */
+
+.left-drawer:not(.is-open),
+.vault-sheet:not(.is-open),
+.gallery-panel:not(.is-open) {
+  pointer-events: none;
+}
