@@ -2616,19 +2616,28 @@ function App() {
 
           } else {
             // ===== MODO NORMAL =====
-            const res = await fetch(`${window.CDPRO_CONFIG.API_BASE}/agent/run`, {
+            // 1 reintento automático (2s) cubre reinicios breves del backend.
+            const _agentBody = JSON.stringify({
+              brief: rawBrief,
+              agent: _agentPayload,
+              outputType,
+              client: clientCtx,
+              reference_images: _referenceImages,
+            });
+            const _doAgentFetch = () => fetch(`${window.CDPRO_CONFIG.API_BASE}/agent/run`, {
               method: "POST",
               signal: _agentAbort.signal,
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                brief: rawBrief,
-                agent: _agentPayload,
-                outputType,
-                client: clientCtx,
-                reference_images: _referenceImages,
-              }),
+              body: _agentBody,
             });
-            const json = await res.json();
+            let _agentRes;
+            try {
+              _agentRes = await _doAgentFetch();
+            } catch (_retryErr) {
+              await new Promise(r => setTimeout(r, 2000));
+              _agentRes = await _doAgentFetch();
+            }
+            const json = await _agentRes.json();
             if (json.refined_prompt && !json.error) {
               finalBrief = json.refined_prompt;
               // Detectar lista numerada devuelta por el agente → ejecutar cada item en secuencia
