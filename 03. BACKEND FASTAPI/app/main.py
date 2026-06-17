@@ -36,7 +36,7 @@ _RL_EXEMPT = ("/generate/media-proxy",)
 # Prefijos protegidos por API key (cuando CDPRO_API_KEY esta definida) — TODOS los metodos.
 _AUTH_PREFIXES = ("/generate", "/agent", "/moodboards", "/analytics", "/gallery", "/store", "/video", "/chat")
 _RL_LAST_PRUNE = [0.0]
-_MAX_BODY = 6 * 1024 * 1024  # 6 MB — techo duro de payload (C-2): evita DoS/abuso de storage
+_MAX_BODY = int(os.environ.get("CDPRO_MAX_BODY_MB", "20")) * 1024 * 1024  # default 20 MB — override via CDPRO_MAX_BODY_MB en .env
 _GET_RL_MAX = 90              # límite de lectura/min por IP (H-3)
 
 
