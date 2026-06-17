@@ -1534,6 +1534,7 @@ function App() {
       clientId: activeClientId || null,
       moodboardId: activeMoodboardId || null,
       createdAt: Date.now(),
+      updatedAt: Date.now(),
     };
     setFlowTemplates(ts => [tpl, ...ts]);
     // También guardar como Proyecto del cliente activo
@@ -1571,9 +1572,9 @@ function App() {
   }, []);
 
   const deleteTemplate = React.useCallback((id) => {
-    setFlowTemplates(ts => ts.filter(t => t.id !== id));
+    setFlowTemplates(ts => ts.map(t => t.id === id ? { ...t, deleted: true, updatedAt: Date.now() } : t));
     window.__notify?.({ kind: "info", icon: "✕", title: "Plantilla eliminada" });
-  }, []);
+  }, []); 
 
   // Style Vault
   const _initialMoodboards = (() => {
@@ -3521,7 +3522,7 @@ function App() {
               onClose={() => setActiveTab(null)}
               onSave={() => setSaveModalOpen(true)}
               onNewCanvas={() => { setNodes([]); setEdges([]); setSelectedId(null); setSelectedIds(new Set()); window.__notify?.({ kind: "info", icon: "✦", title: "Canvas limpio", body: "Listo para un nuevo flujo" }); }}
-              flowTemplates={flowTemplates}
+              flowTemplates={flowTemplates.filter(t => !t.deleted)}
               onLoadTemplate={loadFlow}
               onDeleteTemplate={deleteTemplate}
             />
