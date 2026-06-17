@@ -32,6 +32,8 @@ window.CDPRO_CONFIG = {
 window.__store = {
   _timers: {},
   _polls: {},
+  _sse: null,
+  _sseRetry: null,
 
   _api() {
     return (window.CDPRO_CONFIG && window.CDPRO_CONFIG.API_BASE) || "";
@@ -102,6 +104,38 @@ window.__store = {
   },
 
   /**
+   * Conectar SSE para recibir eventos push en tiempo real cuando otro usuario
+   * hace PUT. Llama apply() al instante, sin esperar el poll de 30s.
+   * Se reconecta automáticamente si la conexión cae (retry 10s).
+   */
+  _connect() {
+    if (this._sse) return;
+    var self = this;
+    try {
+      var src = new EventSource(self._api() + '/store/events');
+      src.onmessage = function(e) {
+        if (!e.data || e.data === 'ping') return;
+        try {
+          var msg = JSON.parse(e.data);
+          var col = msg.collection;
+          if (col && self._applies && self._applies[col]) {
+            self.get(col).then(function(remote) {
+              if (remote) self._applies[col](remote, function() {});
+            });
+          }
+        } catch(err) {}
+      };
+      src.onerror = function() {
+        src.close();
+        self._sse = null;
+        clearTimeout(self._sseRetry);
+        self._sseRetry = setTimeout(function() { self._connect(); }, 10000);
+      };
+      self._sse = src;
+    } catch(err) {}
+  },
+
+  /**
    * Iniciar polling de una colección. `apply(merged)` recibe la lista mergeada
    * y se llama solo si cambió frente a la última versión que vio.
    * Cancela el polling previo de la misma colección si existía.
@@ -130,6 +164,7 @@ window.__store = {
     }
     this._applies = this._applies || {};
     this._applies[collection] = apply;
+    this._connect();
   },
   _pollOLD(collection, apply, intervalMs = 30000) {
     this.stopPoll(collection);
